@@ -18,6 +18,7 @@ const newSessionSchema = z.discriminatedUnion("actorType", [
     promptVersion: z.string().trim().min(1),
     personaId: z.string().trim().min(1),
     calibrationId: z.string().trim().min(1).nullable(),
+    temperature: z.number().min(0).max(2).nullable().optional(),
     variant: z.enum(["A", "B"]).default("A"),
   }),
 ]);
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
         promptVersion: input.promptVersion,
         personaId: input.personaId,
         calibrationId: input.calibrationId,
+        temperature: input.temperature ?? null,
       },
     });
   }

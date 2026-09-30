@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import type { DatasetLabel, FamiliarityBand, Prisma, Variant } from "@/generated/prisma/client";
+import type { DatasetLabel, FamiliarityBand, Prisma, TerminationReason, Variant } from "@/generated/prisma/client";
 import { buildVersion } from "@/lib/build";
 import { db } from "@/lib/db";
 import { TASK_VERSION } from "@/lib/domain/task";
@@ -59,7 +59,13 @@ export type NewSession =
   | {
       actorType: "synthetic";
       variant: Variant;
-      agentRun: { modelId: string; promptVersion: string; personaId: string; calibrationId?: string | null };
+      agentRun: {
+        modelId: string;
+        promptVersion: string;
+        personaId: string;
+        calibrationId?: string | null;
+        temperature?: number | null;
+      };
     };
 
 export async function createSession(input: NewSession) {
@@ -89,9 +95,18 @@ export async function createSession(input: NewSession) {
   });
 }
 
-// The researcher ends a session the participant left. The server writes the
-// session_ended event itself, numbered after the last event the session sent.
+// Termination reasons the research side can record. completion_declared only
+// ever comes from the participant's own I'm finished.
+export type EndReason = Exclude<TerminationReason, "completion_declared">;
+
+// The researcher ends a session the participant left (abandoned), or the agent
+// runner ends a synthetic session by one of its stop rules. The server writes
+// the session_ended event itself, numbered after the last event the session sent.
 export async function abandonSession(sessionId: string) {
+  return endSessionAs(sessionId, "abandoned", "researcher");
+}
+
+export async function endSessionAs(sessionId: string, reason: EndReason, endedBy: "researcher" | "agent_runner") {
   return db.$transaction(async (tx) => {
     const session = await tx.session.findUniqueOrThrow({ where: { id: sessionId } });
     if (session.endedAt) return false;
@@ -103,10 +118,10 @@ export async function abandonSession(sessionId: string) {
         seq: (last._max.seq ?? 0) + 1,
         clientTs: now,
         type: "session_ended",
-        payload: { terminationReason: "abandoned", endedBy: "researcher" },
+        payload: { terminationReason: reason, endedBy },
       },
     });
-    await tx.session.update({ where: { id: sessionId }, data: { endedAt: now, terminationReason: "abandoned" } });
+    await tx.session.update({ where: { id: sessionId }, data: { endedAt: now, terminationReason: reason } });
     await scoreEndedSession(tx, sessionId);
     return true;
   });

@@ -136,5 +136,59 @@ test("the three exports download under build and fixture names", async ({ page }
 
   const steps = await download("agent_steps");
   expect(steps.name).toMatch(/^agent_steps_build-.+_fx-[0-9a-f]{8}\.csv$/);
-  expect(steps.text).toBe("session_id,step_no,screenshot_path,action,reason,executed,error_label,latency_ms\n");
+  // Rows appear once the agent runner has recorded steps.
+  expect(steps.text.split("\n")[0]).toBe("session_id,step_no,screenshot_path,action,reason,executed,error_label,latency_ms");
+});
+
+test("the agent runner records steps, reads status and ends a synthetic session by a stop rule", async ({
+  request,
+}) => {
+  const login = await request.post("/api/admin/login", { form: { password: PASSWORD }, maxRedirects: 0 });
+  expect(login.status()).toBe(303);
+  const created = await request.post("/api/admin/sessions", {
+    data: {
+      actorType: "synthetic",
+      modelId: "gemini-3.8-flash",
+      promptVersion: "system-v1",
+      personaId: "low-v1",
+      calibrationId: null,
+      temperature: 0.4,
+      variant: "B",
+    },
+  });
+  expect(created.status()).toBe(201);
+  const { id, variant } = (await created.json()) as { id: string; variant: string };
+  expect(variant).toBe("B");
+
+  const step = {
+    stepNo: 1,
+    screenshotPath: "runs/x/step-001.png",
+    action: { action: "click", x: 10, y: 20, reason: "look" },
+    reason: "look",
+    executed: true,
+    errorLabel: "no_visible_change",
+    latencyMs: 1200,
+  };
+  expect((await request.post(`/api/admin/sessions/${id}/agent-steps`, { data: step })).status()).toBe(201);
+  expect(
+    (await request.post(`/api/admin/sessions/${id}/agent-steps`, { data: { ...step, errorLabel: "made_up" } })).status(),
+  ).toBe(400);
+  expect(await (await request.get(`/api/admin/sessions/${id}`)).json()).toEqual({ ended: false, terminationReason: null });
+
+  expect((await request.post(`/api/admin/sessions/${id}/end`, { data: { terminationReason: "loop" } })).status()).toBe(204);
+  expect(await (await request.get(`/api/admin/sessions/${id}`)).json()).toEqual({ ended: true, terminationReason: "loop" });
+  expect(
+    (await request.post(`/api/admin/sessions/${id}/end`, { data: { terminationReason: "completion_declared" } })).status(),
+  ).toBe(400); // only the participant's own I'm finished records completion
+
+  const session = await db.session.findUniqueOrThrow({ where: { id }, include: { agentRun: true, agentSteps: true } });
+  expect(session.agentRun?.temperature).toBe(0.4);
+  expect(session.agentRun?.startedAt).not.toBeNull();
+  expect(session.agentSteps.map((s) => [s.stepNo, s.errorLabel])).toEqual([[1, "no_visible_change"]]);
+  const ended = await db.event.findFirst({ where: { sessionId: id, type: "session_ended" } });
+  expect(ended?.payload).toEqual({ terminationReason: "loop", endedBy: "agent_runner" });
+
+  // Steps belong to synthetic sessions only.
+  const human = await newHumanSession();
+  expect((await request.post(`/api/admin/sessions/${human.id}/agent-steps`, { data: step })).status()).toBe(409);
 });

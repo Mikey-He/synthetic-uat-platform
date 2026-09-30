@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "generated/**",
     "playwright-report/**",
     "test-results/**",
+    "agent-runner/.venv/**",
+    "agent-runner/runs/**",
   ]),
 ]);
 

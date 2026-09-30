@@ -27,3 +27,8 @@ next-env.d.ts
 *.pem
 npm-debug.log*
 .vercel
+
+# agent runner: local virtualenv, run output (screenshots), Python caches
+/agent-runner/.venv/
+/agent-runner/runs/
+__pycache__/
