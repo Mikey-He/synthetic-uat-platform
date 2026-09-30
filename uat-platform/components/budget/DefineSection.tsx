@@ -25,7 +25,7 @@ export function DefineSection({ config, errors, change }: Props) {
         />
         <FieldError message={error} />
       </div>
-      <p className="mt-5">Budget type · Alerts only</p>
+      <p className="mt-5">Budget kind · Alerts only</p>
     </>
   );
 }

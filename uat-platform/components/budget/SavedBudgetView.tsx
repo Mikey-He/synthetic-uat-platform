@@ -42,7 +42,7 @@ export function SavedBudgetView({ token, budgetId, config, data }: Props) {
       <div className="mt-4 max-w-3xl border-t border-line">
         <Section number={1}>
           <Row label="Name" value={config.name} />
-          <p className="py-1">Budget type · Alerts only</p>
+          <p className="py-1">Budget kind · Alerts only</p>
         </Section>
 
         <Section number={2}>

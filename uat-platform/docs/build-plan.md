@@ -141,7 +141,7 @@ Every participant route sits under an opaque session token. The server reads the
 
 ### Task bar
 
-A fixed bar sits above the console frame on every participant page. It shows the task text with a collapse toggle. Its I'm finished button records completion and ends the attempt for both actor types.
+A fixed bar sits above the console frame on every participant page. It shows the whole task text at all times, with no collapse toggle, because the guide requires the task text to stay visible. Its I'm finished button records completion and ends the attempt for both actor types.
 
 ### Draft and save behavior
 

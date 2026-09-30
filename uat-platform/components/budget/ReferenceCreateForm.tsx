@@ -167,7 +167,7 @@ export function ReferenceCreateForm({
           }
         }
       },
-      { rootMargin: `-${TASK_BAR_HEIGHT.expanded}px 0px -${FOOTER_HEIGHT}px 0px` },
+      { rootMargin: `-${TASK_BAR_HEIGHT}px 0px -${FOOTER_HEIGHT}px 0px` },
     );
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();

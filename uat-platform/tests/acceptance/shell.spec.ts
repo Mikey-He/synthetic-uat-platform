@@ -47,8 +47,8 @@ for (const route of ROUTES) {
   });
 }
 
-test("task bar shows the whole task and keeps fixed heights", async ({ page }) => {
-  await page.goto(`/s/${token}/billing`);
+test("task bar always shows the whole task at a fixed height", async ({ page }) => {
+  await page.goto(`/s/${token}/billing/budgets/create`);
   const bar = page.getByRole("button", { name: "I'm finished" }).locator("xpath=..");
 
   expect((await bar.boundingBox())?.height).toBe(136);
@@ -56,11 +56,10 @@ test("task bar shows the whole task and keeps fixed heights", async ({ page }) =
     .getByText("Save your settings and indicate when you have finished.")
     .boundingBox();
   expect(lastParagraph!.y + lastParagraph!.height).toBeLessThanOrEqual(136);
+  await expect(page.getByRole("button", { name: /collapse|expand/i })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Collapse task" }).click();
-  expect((await bar.boundingBox())?.height).toBe(44);
-  await page.getByRole("button", { name: "Expand task" }).click();
-  expect((await bar.boundingBox())?.height).toBe(136);
+  await page.mouse.wheel(0, 800);
+  await expect(page.getByText("Only the Atlas project owner should receive this alert.")).toBeInViewport();
 });
 
 test("viewport gate covers small windows and lifts once the window is large enough", async ({
