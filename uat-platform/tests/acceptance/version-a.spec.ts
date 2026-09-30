@@ -1,13 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { db } from "@/lib/db";
+import { newHumanSession } from "./helpers";
 
-const TOKEN = "dev-a";
+let token: string;
+let sessionId: string;
 
-// Step 4 runs on the shared dev token, so each test starts from an empty record.
 test.beforeEach(async () => {
-  await db.evaluation.deleteMany({ where: { token: TOKEN } });
-  await db.budget.deleteMany({ where: { token: TOKEN } });
-  await db.budgetDraft.deleteMany({ where: { token: TOKEN } });
+  const session = await newHumanSession();
+  token = session.token;
+  sessionId = session.id;
 });
 
 test.afterAll(async () => {
@@ -15,7 +16,7 @@ test.afterAll(async () => {
 });
 
 async function openCreateForm(page: Page) {
-  await page.goto(`/s/${TOKEN}/billing/budgets`);
+  await page.goto(`/s/${token}/billing/budgets`);
   await page.getByRole("link", { name: "Create budget" }).click();
   await expect(page.getByRole("heading", { name: "Create budget" })).toBeVisible();
 }
@@ -62,7 +63,7 @@ test("a person saves the correct Atlas budget by clicking, and reopens it", asyn
 
   // The stored evaluation passes every criterion
   const evaluation = await db.evaluation.findFirst({
-    where: { token: TOKEN },
+    where: { sessionId },
     orderBy: { createdAt: "desc" },
   });
   expect(evaluation?.overallSuccess).toBe(true);
@@ -90,7 +91,7 @@ test("a person saves the correct Atlas budget by clicking, and reopens it", asyn
   // Saving again writes a new version of the same budget
   await page.getByRole("button", { name: "Finish", exact: true }).click();
   await expect(page).toHaveURL(/\/billing\/budgets\/[0-9a-f-]{36}$/);
-  const versions = await db.budget.findMany({ where: { token: TOKEN }, orderBy: { version: "asc" } });
+  const versions = await db.budget.findMany({ where: { sessionId }, orderBy: { version: "asc" } });
   expect(versions.map((row) => row.version)).toEqual([1, 2]);
   expect(new Set(versions.map((row) => row.id)).size).toBe(1);
 });
@@ -99,7 +100,7 @@ test("the draft survives a reload", async ({ page }) => {
   await openCreateForm(page);
   await page.getByLabel("Name", { exact: true }).fill("Draft only");
   await expect
-    .poll(async () => (await db.budgetDraft.findUnique({ where: { token: TOKEN } }))?.draft)
+    .poll(async () => (await db.budgetDraft.findUnique({ where: { sessionId } }))?.draft)
     .toMatchObject({ config: { name: "Draft only" } });
   await page.reload();
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Draft only");
@@ -111,5 +112,5 @@ test("a missing name shows validation and nothing is saved", async ({ page }) =>
   await page.getByRole("button", { name: "Finish", exact: true }).click();
   await expect(page.getByText("Enter a budget name.")).toBeVisible();
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
-  expect(await db.budget.count({ where: { token: TOKEN } })).toBe(0);
+  expect(await db.budget.count({ where: { sessionId } })).toBe(0);
 });

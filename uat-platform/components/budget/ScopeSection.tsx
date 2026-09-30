@@ -49,7 +49,7 @@ export function ScopeSection({ config, data, errors, change }: Props) {
 
   return (
     <div className="space-y-5">
-      <div>
+      <div data-setting="period">
         <p id={periodId} className="font-medium">
           Time range
         </p>
@@ -106,7 +106,7 @@ export function ScopeSection({ config, data, errors, change }: Props) {
         />
       </div>
 
-      <div>
+      <div data-setting="scope">
         <p id={projectsId} className="font-medium">
           Projects
         </p>

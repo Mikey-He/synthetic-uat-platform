@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { TASK_TEXT } from "@/lib/domain/task";
+import { useLogger } from "@/lib/events/EventLoggerProvider";
 
 // Fixed heights so screenshots line up across sessions.
 export const TASK_BAR_HEIGHT = { expanded: 136, collapsed: 44 } as const;
@@ -16,7 +18,26 @@ type Props = {
 
 export function TaskBar({ token, collapsed, onToggle }: Props) {
   const router = useRouter();
+  const logger = useLogger();
+  const [finishing, setFinishing] = useState(false);
   const height = collapsed ? TASK_BAR_HEIGHT.collapsed : TASK_BAR_HEIGHT.expanded;
+
+  // I'm finished ends the attempt for both actor types, saved or not. The last
+  // events travel with the request that records the end of the session.
+  async function finish() {
+    if (finishing) return;
+    setFinishing(true);
+    logger?.log("completion_declared", "I'm finished");
+    logger?.log("session_ended", null, { terminationReason: "completion_declared" });
+    logger?.stop();
+    await logger?.settle();
+    await fetch(`/api/s/${token}/complete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ events: logger?.drain() ?? [] }),
+    }).catch(() => undefined);
+    router.push(`/s/${token}/done`);
+  }
 
   return (
     <div
@@ -53,11 +74,7 @@ export function TaskBar({ token, collapsed, onToggle }: Props) {
           />
         </svg>
       </button>
-      <button
-        type="button"
-        className="btn-primary -my-2 shrink-0"
-        onClick={() => router.push(`/s/${token}/done`)}
-      >
+      <button type="button" className="btn-primary -my-2 shrink-0" disabled={finishing} onClick={finish}>
         I&apos;m finished
       </button>
     </div>

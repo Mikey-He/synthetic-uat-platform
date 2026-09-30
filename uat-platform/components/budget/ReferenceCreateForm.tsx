@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { TASK_BAR_HEIGHT } from "@/components/taskbar/TaskBar";
 import { lastMonthSpend } from "@/lib/domain/costs";
 import { updateConfig, validateConfig, type ValidationIssue } from "@/lib/domain/rules";
 import type { BudgetConfig, Fixture } from "@/lib/domain/types";
+import { useLogger } from "@/lib/events/EventLoggerProvider";
+import { settingOfField, settingValue, type Setting } from "@/lib/events/types";
 import { formatMoney } from "@/lib/format";
 import { ActionsSection } from "./ActionsSection";
 import { AmountSection } from "./AmountSection";
@@ -38,12 +41,27 @@ type Props = {
   data: CreateFormData;
   initialConfig: BudgetConfig;
   editingBudgetId: string | null;
+  reopenedBudgetId: string | null; // set when Edit on a saved budget opened the form
 };
 
 const DRAFT_DELAY_MS = 500;
+const FOOTER_HEIGHT = 64;
+const SECTION_KEYS = { 1: "define", 2: "scope", 3: "amount", 4: "actions" } as const;
 
-export function ReferenceCreateForm({ token, data, initialConfig, editingBudgetId }: Props) {
+// How a person came back to a setting. For this long after a section opens, a
+// return is credited to what opened it; any other return is a scroll.
+type NavCause = "section_header_click" | "next_button" | "validation" | "page_load";
+const CAUSE_WINDOW_MS = 1500;
+
+export function ReferenceCreateForm({
+  token,
+  data,
+  initialConfig,
+  editingBudgetId,
+  reopenedBudgetId,
+}: Props) {
   const router = useRouter();
+  const logger = useLogger();
   const [store] = useState(() => createFormStore(initialFormState(initialConfig)));
   const state = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [saving, setSaving] = useState(false);
@@ -51,7 +69,32 @@ export function ReferenceCreateForm({ token, data, initialConfig, editingBudgetI
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftWrite = useRef<Promise<unknown>>(Promise.resolve());
   const saved = useRef(false);
+  const root = useRef<HTMLDivElement>(null);
+  const visible = useRef(new Set<Setting>());
+  const navCause = useRef<NavCause | null>(null);
+  const causeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mounted = useRef(false);
   const listHref = `/s/${token}/billing/budgets`;
+
+  const markCause = useCallback((cause: NavCause) => {
+    navCause.current = cause;
+    if (causeTimer.current !== null) clearTimeout(causeTimer.current);
+    causeTimer.current = setTimeout(() => {
+      navCause.current = null;
+    }, CAUSE_WINDOW_MS);
+  }, []);
+
+  const logStep = useCallback(
+    (section: SectionNumber) => {
+      if (!logger) return;
+      const key = SECTION_KEYS[section];
+      const entry = logger.firstTime("step", key) ? "first" : "return";
+      logger.log("step_entered", key, { section: key, number: section, entry });
+    },
+    [logger],
+  );
+
+  // ---- draft saving -------------------------------------------------------
 
   const writeDraft = useCallback(
     (keepalive: boolean) => {
@@ -87,26 +130,110 @@ export function ReferenceCreateForm({ token, data, initialConfig, editingBudgetI
     };
   }, [flushDraft]);
 
-  // Every change updates local state at once. The draft follows after 500 ms
-  // without further changes.
+  // ---- events on arrival --------------------------------------------------
+
+  useEffect(() => {
+    if (mounted.current || !logger) return;
+    mounted.current = true;
+    markCause("page_load");
+    if (reopenedBudgetId) logger.log("budget_reopened", reopenedBudgetId, { budgetId: reopenedBudgetId });
+    logStep(store.get().openSection);
+  }, [logger, logStep, markCause, reopenedBudgetId, store]);
+
+  // setting_reached and setting_returned: which setting controls are on screen.
+  // The fixed task bar and the Finish bar are not counted as viewport.
+  useEffect(() => {
+    const form = root.current;
+    if (!logger || !form) return;
+    const shown = visible.current;
+    const elements = Array.from(form.querySelectorAll<HTMLElement>("[data-setting]"));
+    const present = new Set(elements.map((element) => element.dataset.setting as Setting));
+    for (const setting of [...shown]) {
+      if (!present.has(setting)) {
+        shown.delete(setting); // its section closed
+        logger.settingLeft(setting);
+      }
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const setting = (entry.target as HTMLElement).dataset.setting as Setting;
+          if (entry.isIntersecting && !shown.has(setting)) {
+            shown.add(setting);
+            logger.settingEntered(setting, settingValue(store.get().config, setting), navCause.current ?? "scroll");
+          } else if (!entry.isIntersecting && shown.has(setting)) {
+            shown.delete(setting);
+            logger.settingLeft(setting);
+          }
+        }
+      },
+      { rootMargin: `-${TASK_BAR_HEIGHT.expanded}px 0px -${FOOTER_HEIGHT}px 0px` },
+    );
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [logger, store, state.openSection]);
+
+  // Leaving the page takes every setting out of view.
+  useEffect(() => {
+    const shown = visible.current;
+    return () => {
+      for (const setting of shown) logger?.settingLeft(setting);
+      shown.clear();
+    };
+  }, [logger]);
+
+  // ---- changes ------------------------------------------------------------
+
+  // Every change updates local state at once, is logged with its old and new
+  // value, and reaches the draft after 500 ms without further changes.
   const change: Change = (updates, patch = {}) => {
     const current = store.get();
     const result = updateConfig(current.config, updates);
     store.set({ ...current, ...patch, config: result.config });
+    for (const c of result.changes) {
+      logger?.log("field_changed", c.path, {
+        field: c.path,
+        setting: settingOfField(c.path),
+        oldValue: c.oldValue ?? null, // an empty optional field is logged as null
+        newValue: c.newValue ?? null,
+      });
+    }
+    for (const cleared of result.cleared) {
+      logger?.log("option_cleared_by_scope", cleared.option, cleared);
+    }
     if (result.changes.length === 0 && result.cleared.length === 0) return;
     if (draftTimer.current !== null) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => writeDraft(false), DRAFT_DELAY_MS);
   };
 
-  const openSection = (section: SectionNumber) => store.set({ ...store.get(), openSection: section });
+  const openSection = (section: SectionNumber, cause: NavCause) => {
+    const current = store.get();
+    if (current.openSection === section) return;
+    markCause(cause);
+    store.set({ ...current, openSection: section });
+    logStep(section);
+  };
 
-  const report = (issues: ValidationIssue[]) =>
-    store.set({ ...store.get(), reported: issues, openSection: sectionOf(issues[0].field) });
+  // ---- finish ---------------------------------------------------------------
+
+  const showIssues = (issues: ValidationIssue[]) => {
+    const shown = issues.map((issue) => ({ field: issue.field, message: VALIDATION_MESSAGES[issue.code] }));
+    for (const item of shown) logger?.log("validation_shown", item.field, item);
+    logger?.log("save_failed", "Finish", { reason: "validation", issues: shown });
+    store.set({ ...store.get(), reported: issues });
+    openSection(sectionOf(issues[0].field), "validation");
+  };
 
   async function finish() {
-    const issues = validateConfig(store.get().config);
+    const config = store.get().config;
+    logger?.log("save_clicked", "Finish", { draft: config });
+    const issues = validateConfig(config);
+    logger?.log("save_attempted", "Finish", {
+      valid: issues.length === 0,
+      issues: issues.map((issue) => ({ field: issue.field, message: VALIDATION_MESSAGES[issue.code] })),
+    });
     if (issues.length > 0) {
-      report(issues);
+      showIssues(issues);
       return;
     }
     setSaving(true);
@@ -119,25 +246,29 @@ export function ReferenceCreateForm({ token, data, initialConfig, editingBudgetI
     const response = await fetch(`/api/s/${token}/budgets`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ config: store.get().config, editingBudgetId }),
+      body: JSON.stringify({ config, editingBudgetId }),
     }).catch(() => null);
 
     if (response?.ok) {
       saved.current = true;
-      const { budgetId } = (await response.json()) as { budgetId: string };
+      const { budgetId, version } = (await response.json()) as { budgetId: string; version: number };
+      logger?.log("save_succeeded", budgetId, { budgetId, version });
       router.push(`/s/${token}/billing/budgets/${budgetId}`);
       return;
     }
     setSaving(false);
-    if (response?.status === 400) {
-      const body = (await response.json().catch(() => null)) as { issues?: ValidationIssue[] } | null;
-      if (body?.issues?.length) {
-        report(body.issues);
-        return;
-      }
+    const body = response
+      ? ((await response.json().catch(() => null)) as { issues?: ValidationIssue[] } | null)
+      : null;
+    if (body?.issues?.length) {
+      showIssues(body.issues);
+      return;
     }
+    logger?.log("save_failed", "Finish", { reason: "server", status: response?.status ?? null });
     setSaveFailed(true);
   }
+
+  // ---- render -------------------------------------------------------------
 
   const { config } = state;
   // A message from the last Finish stays until its problem is fixed.
@@ -172,8 +303,8 @@ export function ReferenceCreateForm({ token, data, initialConfig, editingBudgetI
       number={number}
       summary={summaries[number]}
       open={state.openSection === number}
-      onOpen={() => openSection(number)}
-      onNext={number < 4 ? () => openSection((number + 1) as SectionNumber) : undefined}
+      onOpen={() => openSection(number, "section_header_click")}
+      onNext={number < 4 ? () => openSection((number + 1) as SectionNumber, "next_button") : undefined}
     >
       {body}
     </FormSection>
@@ -195,7 +326,7 @@ export function ReferenceCreateForm({ token, data, initialConfig, editingBudgetI
       </div>
 
       <div className="mt-4 flex items-start gap-8">
-        <div className="w-[60%] min-w-0 border-t border-line">
+        <div ref={root} className="w-[60%] min-w-0 border-t border-line">
           {section(1, <DefineSection config={config} errors={errors} change={change} />)}
           {section(2, <ScopeSection config={config} data={data} errors={errors} change={change} />)}
           {section(

@@ -4,12 +4,14 @@ import { listBudgets } from "@/lib/budgets";
 import { budgetAmount } from "@/lib/domain/costs";
 import { fixture } from "@/lib/fixtures";
 import { formatMoney } from "@/lib/format";
+import { getParticipantSession } from "@/lib/session";
 
 type Props = { params: Promise<{ token: string }> };
 
 export default async function BudgetsPage({ params }: Props) {
   const { token } = await params;
-  const budgets = await listBudgets(token);
+  const session = await getParticipantSession(token);
+  const budgets = session ? await listBudgets(session.id) : [];
 
   return (
     <>

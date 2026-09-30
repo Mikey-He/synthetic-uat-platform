@@ -25,7 +25,7 @@ export function AmountSection({ config, targetText, data, errors, change }: Prop
   const error = errors.get("amount.target");
 
   return (
-    <>
+    <div data-setting="amount">
       <fieldset>
         <legend className="font-medium">Budget type</legend>
         <div className="mt-1.5 space-y-1">
@@ -78,6 +78,6 @@ export function AmountSection({ config, targetText, data, errors, change }: Prop
           </>
         )}
       </div>
-    </>
+    </div>
   );
 }

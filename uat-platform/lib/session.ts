@@ -1,18 +1,89 @@
-// Stand-in until step 5. The only valid token is the dev token, a version A
-// human session. Step 5 replaces this with the Session table.
-//
-// The variant is read in exactly one place: the create route's switch.
+import { nanoid } from "nanoid";
+import type { DatasetLabel, FamiliarityBand, Prisma, Variant } from "@/generated/prisma/client";
+import { buildVersion } from "@/lib/build";
+import { db } from "@/lib/db";
+import { TASK_VERSION } from "@/lib/domain/task";
+import { EVALUATOR_VERSION } from "@/lib/evaluator/evaluate";
+import { defaults, defaultsHash, fixture, fixtureHash } from "@/lib/fixtures";
 
-export type Variant = "A" | "B";
+// Server only. A session is one attempt by one actor, human or synthetic.
 
-export type ParticipantSession = {
-  token: string;
-  actorType: "human" | "synthetic";
-  variant: Variant;
-};
+export async function getParticipantSession(token: string) {
+  return db.session.findUnique({
+    where: { token },
+    // The variant is deliberately not selected here. See readVariant.
+    select: { id: true, token: true, actorType: true, startedAt: true, endedAt: true },
+  });
+}
 
-const DEV_TOKEN = "dev-a";
+export type ParticipantSession = NonNullable<Awaited<ReturnType<typeof getParticipantSession>>>;
 
-export async function getParticipantSession(token: string): Promise<ParticipantSession | null> {
-  return token === DEV_TOKEN ? { token, actorType: "human", variant: "A" } : null;
+// Only the create route may call this: it holds the single switch on variant.
+export async function readVariant(sessionId: string): Promise<Variant> {
+  const session = await db.session.findUniqueOrThrow({ where: { id: sessionId }, select: { variant: true } });
+  return session.variant;
+}
+
+export async function lastEventSeq(sessionId: string) {
+  const result = await db.event.aggregate({ where: { sessionId }, _max: { seq: true } });
+  return result._max.seq ?? 0;
+}
+
+// Freezes fixture-v1 and defaults-v1 in the database the first time, and
+// refuses to go on if a frozen file has changed since.
+export async function ensureFixtureVersions() {
+  const files = [
+    { id: fixture.fixtureVersion, content: fixture, hash: fixtureHash },
+    { id: defaults.defaultsVersion, content: defaults, hash: defaultsHash },
+  ];
+  for (const file of files) {
+    const row = await db.fixtureVersion.upsert({
+      where: { id: file.id },
+      create: { id: file.id, content: file.content as Prisma.InputJsonValue, contentHash: file.hash },
+      update: {},
+    });
+    if (row.contentHash !== file.hash) {
+      throw new Error(`${file.id} changed after it was frozen. Add a new version file instead.`);
+    }
+  }
+}
+
+export type NewSession =
+  | {
+      actorType: "human";
+      variant: Variant;
+      datasetLabel: Exclude<DatasetLabel, "synthetic">;
+      familiarityBand: FamiliarityBand;
+    }
+  | {
+      actorType: "synthetic";
+      variant: Variant;
+      agentRun: { modelId: string; promptVersion: string; personaId: string; calibrationId?: string | null };
+    };
+
+export async function createSession(input: NewSession) {
+  await ensureFixtureVersions();
+  const base = {
+    token: nanoid(), // 21 random URL-safe characters, independent of the variant
+    variant: input.variant,
+    fixture: { connect: { id: fixture.fixtureVersion } },
+    defaults: { connect: { id: defaults.defaultsVersion } },
+    taskVersion: TASK_VERSION,
+    buildVersion: buildVersion(),
+    evaluatorVersion: EVALUATOR_VERSION,
+  };
+  if (input.actorType === "human") {
+    return db.session.create({
+      data: {
+        ...base,
+        actorType: "human",
+        datasetLabel: input.datasetLabel,
+        // Pseudonymous: a random id and a familiarity band, never a name or an email.
+        participant: { create: { id: nanoid(), familiarityBand: input.familiarityBand } },
+      },
+    });
+  }
+  return db.session.create({
+    data: { ...base, actorType: "synthetic", datasetLabel: "synthetic", agentRun: { create: input.agentRun } },
+  });
 }

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { ReferenceCreateForm } from "@/components/budget/ReferenceCreateForm";
 import { getBudget, getDraft, type Draft } from "@/lib/budgets";
 import { defaults, fixture } from "@/lib/fixtures";
-import { getParticipantSession } from "@/lib/session";
+import { getParticipantSession, readVariant } from "@/lib/session";
 
 type Props = {
   params: Promise<{ token: string }>;
@@ -17,12 +17,12 @@ export default async function CreateBudgetPage({ params, searchParams }: Props) 
 
   // Edit on a saved budget opens this page with ?edit=<id>. A draft already
   // editing that budget wins, so changes survive a reload.
-  const draft = await getDraft(token);
+  const draft = await getDraft(session.id);
   let start: Draft;
   if (typeof edit === "string") {
     if (draft?.editingBudgetId === edit) start = draft;
     else {
-      const budget = await getBudget(token, edit);
+      const budget = await getBudget(session.id, edit);
       if (!budget) notFound();
       start = { config: budget.config, editingBudgetId: budget.id };
     }
@@ -41,7 +41,7 @@ export default async function CreateBudgetPage({ params, searchParams }: Props) 
   };
 
   // The only place in the codebase that reads the variant.
-  switch (session.variant) {
+  switch (await readVariant(session.id)) {
     case "A":
       return (
         <ReferenceCreateForm
@@ -50,6 +50,7 @@ export default async function CreateBudgetPage({ params, searchParams }: Props) 
           data={data}
           initialConfig={start.config}
           editingBudgetId={start.editingBudgetId}
+          reopenedBudgetId={typeof edit === "string" ? edit : null}
         />
       );
     case "B":
