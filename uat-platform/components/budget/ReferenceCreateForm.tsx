@@ -2,26 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { TASK_BAR_HEIGHT } from "@/components/taskbar/TaskBar";
-import { updateConfig, validateConfig, type ValidationIssue } from "@/lib/domain/rules";
+import { validateConfig, type ValidationIssue } from "@/lib/domain/rules";
 import type { BudgetConfig, Fixture } from "@/lib/domain/types";
-import { useLogger } from "@/lib/events/EventLoggerProvider";
-import { settingOfField, settingValue, type Setting } from "@/lib/events/types";
+import { settingValue, type Setting } from "@/lib/events/types";
 import { ActionsSection } from "./ActionsSection";
 import { AmountSection } from "./AmountSection";
 import { CostTrend } from "./CostTrend";
 import { DefineSection } from "./DefineSection";
-import {
-  createFormStore,
-  initialFormState,
-  sectionOf,
-  type Change,
-  type FormMode,
-  type SectionNumber,
-} from "./formStore";
+import { initialFormState, sectionOf, type FormMode, type SectionNumber } from "./formStore";
 import { SECTION_NAMES, VALIDATION_MESSAGES } from "./labels";
 import { Chevron, ScopeSection } from "./ScopeSection";
+import { useBudgetDraft } from "./useBudgetDraft";
 
 export type CreateFormData = Pick<
   Fixture,
@@ -41,7 +34,6 @@ type Props = {
 // Next, and Finish and Cancel right under the steps; Edit Budget opens every
 // section with Save and Cancel pinned to the bottom of the page.
 
-const DRAFT_DELAY_MS = 500;
 const FOOTER_HEIGHT = 64;
 const SECTIONS: SectionNumber[] = [1, 2, 3, 4];
 const SECTION_KEYS = { 1: "define", 2: "scope", 3: "amount", 4: "actions" } as const;
@@ -53,14 +45,12 @@ const CAUSE_WINDOW_MS = 1500;
 
 export function ReferenceCreateForm({ token, mode, data, initialConfig, editingBudgetId, savedName }: Props) {
   const router = useRouter();
-  const logger = useLogger();
-  const [store] = useState(() => createFormStore(initialFormState(initialConfig, mode)));
-  const state = useSyncExternalStore(store.subscribe, store.get, store.get);
-  const [saving, setSaving] = useState(false);
+  const { logger, store, state, change, submit, saving } = useBudgetDraft({
+    token,
+    initialState: initialFormState(initialConfig, mode),
+    editingBudgetId,
+  });
   const [saveFailed, setSaveFailed] = useState(false);
-  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftWrite = useRef<Promise<unknown>>(Promise.resolve());
-  const saved = useRef(false);
   const root = useRef<HTMLDivElement>(null);
   const visible = useRef(new Set<Setting>());
   const navCause = useRef<NavCause | null>(null);
@@ -85,42 +75,6 @@ export function ReferenceCreateForm({ token, mode, data, initialConfig, editingB
     },
     [logger],
   );
-
-  // ---- draft saving -------------------------------------------------------
-
-  const writeDraft = useCallback(
-    (keepalive: boolean) => {
-      draftTimer.current = null;
-      if (saved.current) return;
-      draftWrite.current = fetch(`/api/s/${token}/draft`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ config: store.get().config, editingBudgetId }),
-        keepalive,
-      }).catch(() => undefined);
-    },
-    [store, token, editingBudgetId],
-  );
-
-  const flushDraft = useCallback(() => {
-    if (draftTimer.current === null) return;
-    clearTimeout(draftTimer.current);
-    writeDraft(true);
-  }, [writeDraft]);
-
-  // Leaving the page, by any route, keeps the draft.
-  useEffect(() => {
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") flushDraft();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", flushDraft);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pagehide", flushDraft);
-      flushDraft();
-    };
-  }, [flushDraft]);
 
   // ---- events on arrival --------------------------------------------------
 
@@ -174,30 +128,6 @@ export function ReferenceCreateForm({ token, mode, data, initialConfig, editingB
     };
   }, [logger]);
 
-  // ---- changes ------------------------------------------------------------
-
-  // Every change updates local state at once, is logged with its old and new
-  // value, and reaches the draft after 500 ms without further changes.
-  const change: Change = (updates, patch = {}) => {
-    const current = store.get();
-    const result = updateConfig(current.config, updates);
-    store.set({ ...current, ...patch, config: result.config });
-    for (const c of result.changes) {
-      logger?.log("field_changed", c.path, {
-        field: c.path,
-        setting: settingOfField(c.path),
-        oldValue: c.oldValue ?? null, // an empty optional field is logged as null
-        newValue: c.newValue ?? null,
-      });
-    }
-    for (const cleared of result.cleared) {
-      logger?.log("option_cleared_by_scope", cleared.option, cleared);
-    }
-    if (result.changes.length === 0 && result.cleared.length === 0) return;
-    if (draftTimer.current !== null) clearTimeout(draftTimer.current);
-    draftTimer.current = setTimeout(() => writeDraft(false), DRAFT_DELAY_MS);
-  };
-
   // Create: one step open at a time. Next marks the step it leaves as done.
   const openStep = (section: SectionNumber, cause: NavCause) => {
     const current = store.get();
@@ -230,9 +160,6 @@ export function ReferenceCreateForm({ token, mode, data, initialConfig, editingB
   const saveLabel = mode === "edit" ? "Save" : "Finish";
 
   const showIssues = (issues: ValidationIssue[]) => {
-    const shown = issues.map((issue) => ({ field: issue.field, message: VALIDATION_MESSAGES[issue.code] }));
-    for (const item of shown) logger?.log("validation_shown", item.field, item);
-    logger?.log("save_failed", saveLabel, { reason: "validation", issues: shown });
     const first = sectionOf(issues[0].field);
     const current = store.get();
     store.set({ ...current, reported: issues, visited: SECTIONS });
@@ -241,47 +168,11 @@ export function ReferenceCreateForm({ token, mode, data, initialConfig, editingB
   };
 
   async function finish() {
-    const config = store.get().config;
-    logger?.log("save_clicked", saveLabel, { draft: config });
-    const issues = validateConfig(config);
-    logger?.log("save_attempted", saveLabel, {
-      valid: issues.length === 0,
-      issues: issues.map((issue) => ({ field: issue.field, message: VALIDATION_MESSAGES[issue.code] })),
-    });
-    if (issues.length > 0) {
-      showIssues(issues);
-      return;
-    }
-    setSaving(true);
     setSaveFailed(false);
-    if (draftTimer.current !== null) {
-      clearTimeout(draftTimer.current);
-      draftTimer.current = null;
-    }
-    await draftWrite.current; // an earlier draft write must land before the save clears it
-    const response = await fetch(`/api/s/${token}/budgets`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ config, editingBudgetId }),
-    }).catch(() => null);
-
-    if (response?.ok) {
-      saved.current = true;
-      const { budgetId, version } = (await response.json()) as { budgetId: string; version: number };
-      logger?.log("save_succeeded", budgetId, { budgetId, version });
-      router.push(listHref); // back to the budgets list, as the console does
-      return;
-    }
-    setSaving(false);
-    const body = response
-      ? ((await response.json().catch(() => null)) as { issues?: ValidationIssue[] } | null)
-      : null;
-    if (body?.issues?.length) {
-      showIssues(body.issues);
-      return;
-    }
-    logger?.log("save_failed", saveLabel, { reason: "server", status: response?.status ?? null });
-    setSaveFailed(true);
+    const result = await submit(saveLabel, (issue) => VALIDATION_MESSAGES[issue.code]);
+    if (result.status === "saved") router.push(listHref); // back to the budgets list, as the console does
+    else if (result.status === "invalid") showIssues(result.issues);
+    else setSaveFailed(true);
   }
 
   // ---- render -------------------------------------------------------------

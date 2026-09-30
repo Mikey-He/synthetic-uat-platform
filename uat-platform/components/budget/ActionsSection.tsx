@@ -10,6 +10,7 @@ import type { BudgetConfig } from "@/lib/domain/types";
 import { Checkbox, FieldError, OutlinedInput } from "./fields";
 import type { Change } from "./formStore";
 import { TRIGGER_OPTIONS } from "./labels";
+import { addThreshold, removeThreshold, setPercent, setTrigger } from "./setters";
 
 type Props = {
   token: string;
@@ -31,21 +32,9 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
   const emailEnabled = emailOptionsEnabled(config);
   const ownersAvailable = projectOwnersAvailable(config);
 
-  const setPercent = (index: number, percent: number, text: string) =>
-    change([[`thresholds.${index}.percent`, percent]], {
-      percentTexts: percentTexts.map((t, i) => (i === index ? text : t)),
-    });
-
-  const removeThreshold = (index: number) =>
-    change([["thresholds", thresholds.filter((_, i) => i !== index)]], {
-      percentTexts: percentTexts.filter((_, i) => i !== index),
-    });
-
-  // A new rule starts at 0% of actual spend, as in the capture.
-  const addThreshold = () =>
-    change([["thresholds", [...thresholds, { percent: 0, trigger: "actual" }]]], {
-      percentTexts: [...percentTexts, "0"],
-    });
+  const texts = { targetText: "", percentTexts };
+  const onPercent = (index: number, percent: number, text: string) =>
+    setPercent(change, texts, index, percent, text);
 
   return (
     <>
@@ -69,7 +58,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
                     inputMode="decimal"
                     value={percentTexts[index] ?? ""}
                     invalid={Boolean(error)}
-                    onChange={(text) => setPercent(index, parseNumber(text) ?? Number.NaN, text)}
+                    onChange={(text) => onPercent(index, parseNumber(text) ?? Number.NaN, text)}
                   />
                   <FieldError message={error} />
                 </div>
@@ -78,13 +67,13 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
                   label={`Amount ${n}`}
                   base={base}
                   percent={threshold.percent}
-                  onPercent={(percent) => setPercent(index, percent, Number.isNaN(percent) ? "" : plain(percent))}
+                  onPercent={(percent) => onPercent(index, percent, Number.isNaN(percent) ? "" : plain(percent))}
                 />
                 <Select
                   label={`Trigger on ${n}`}
                   value={threshold.trigger}
                   options={TRIGGER_OPTIONS}
-                  onChange={(trigger) => change([[`thresholds.${index}.trigger`, trigger]])}
+                  onChange={(trigger) => setTrigger(change, index, trigger)}
                   className="w-44 shrink-0"
                 />
                 {/* Shown on hover or focus, as in the capture ("Delete item"). */}
@@ -92,7 +81,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
                   type="button"
                   aria-label="Delete item"
                   title="Delete item"
-                  onClick={() => removeThreshold(index)}
+                  onClick={() => removeThreshold(change, config, texts, index)}
                   className="mt-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-muted opacity-0 hover:bg-surface focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
                 >
                   <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
@@ -106,7 +95,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
             );
           })}
         </div>
-        <button type="button" className="btn-secondary mt-5 gap-1" onClick={addThreshold}>
+        <button type="button" className="btn-secondary mt-5 gap-1" onClick={() => addThreshold(change, config, texts)}>
           <span aria-hidden="true" className="text-[18px] leading-none">
             +
           </span>

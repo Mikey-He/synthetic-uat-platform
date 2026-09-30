@@ -58,7 +58,7 @@ uat-platform/
   components/
     console/                  console-style layout, stepper, form controls
     budget/                   Scope, Amount, Actions sections
-    variant-b/                GuidedSetup and its screens
+    guided/                   GuidedSetup and its screens (not "variant-b": dev chunk names would carry the variant)
     taskbar/                  task text and I'm finished button
   lib/
     fixtures/                 fixture-v1.json, defaults-v1.json, defaults-v2.json
@@ -165,7 +165,7 @@ If the window is smaller than 1440 × 900, show a message asking the participant
 `GuidedSetup` is a seven-screen flow that writes into the same BudgetDraft as the A form. It reuses A's field setters and validation, so both variants save the same configuration shape. Guide Part 14.4 defines every screen.
 
 ```tsx
-// components/variant-b/GuidedSetup.tsx
+// components/guided/GuidedSetup.tsx
 const SCREENS = ['name', 'projects', 'period', 'amount', 'alerts', 'recipients', 'review'] as const;
 
 export function GuidedSetup({ draft, setField, save, log }: Props) {

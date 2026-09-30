@@ -3,11 +3,11 @@
 import { useId } from "react";
 import { Select } from "@/components/console/Dropdown";
 import { lastMonthSpend, type CostData } from "@/lib/domain/costs";
-import { parseNumber } from "@/lib/domain/rules";
 import type { BudgetConfig, Period } from "@/lib/domain/types";
 import { FieldError, OutlinedInput } from "./fields";
 import type { Change } from "./formStore";
 import { AMOUNT_TYPE_OPTIONS } from "./labels";
+import { setTarget } from "./setters";
 
 type Props = {
   config: BudgetConfig;
@@ -51,7 +51,7 @@ export function AmountSection({ config, targetText, data, errors, change }: Prop
             inputMode="decimal"
             value={targetText}
             invalid={Boolean(error)}
-            onChange={(text) => change([["amount.target", parseNumber(text)]], { targetText: text })}
+            onChange={(text) => setTarget(change, text)}
           />
           <FieldError message={error} />
         </div>

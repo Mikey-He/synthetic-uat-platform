@@ -1,12 +1,16 @@
 import { z } from "zod";
 import { isAdmin, unauthorized } from "@/lib/admin";
+import { nextEvaluationVariant } from "@/lib/assignment";
 import { createSession } from "@/lib/session";
 
 const newSessionSchema = z.discriminatedUnion("actorType", [
   z.strictObject({
     actorType: z.literal("human"),
     familiarityBand: z.enum(["low", "medium", "high"]),
-    datasetLabel: z.enum(["pilot", "calibration_A", "evaluation_A"]),
+    // "evaluation" is the main study: the variant comes from block assignment
+    // and the label follows it (evaluation_A or evaluation_B).
+    datasetLabel: z.enum(["pilot", "calibration_A", "evaluation"]),
+    variant: z.enum(["A", "B"]).optional(), // pilot only; defaults to A
   }),
   z.strictObject({
     actorType: z.literal("synthetic"),
@@ -14,6 +18,7 @@ const newSessionSchema = z.discriminatedUnion("actorType", [
     promptVersion: z.string().trim().min(1),
     personaId: z.string().trim().min(1),
     calibrationId: z.string().trim().min(1).nullable(),
+    variant: z.enum(["A", "B"]).default("A"),
   }),
 ]);
 
@@ -24,23 +29,36 @@ export async function POST(request: Request) {
   const body = newSessionSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return new Response(null, { status: 400 });
 
-  // TODO: variant is fixed to A until the version B build adds B and block assignment.
   const input = body.data;
-  const session =
-    input.actorType === "human"
-      ? await createSession({ ...input, variant: "A" })
-      : await createSession({
-          actorType: "synthetic",
-          variant: "A",
-          agentRun: {
-            modelId: input.modelId,
-            promptVersion: input.promptVersion,
-            personaId: input.personaId,
-            calibrationId: input.calibrationId,
-          },
-        });
+  let session;
+  if (input.actorType === "human") {
+    const { familiarityBand, datasetLabel, variant } = input;
+    // calibration_A is A only, and block assignment picks the main-study variant.
+    if (datasetLabel !== "pilot" && variant !== undefined) return new Response(null, { status: 400 });
+    const human = { actorType: "human", familiarityBand } as const;
+    if (datasetLabel === "evaluation") {
+      const assigned = await nextEvaluationVariant(familiarityBand);
+      session = await createSession({ ...human, variant: assigned, datasetLabel: `evaluation_${assigned}` });
+    } else {
+      session = await createSession({ ...human, variant: datasetLabel === "pilot" ? (variant ?? "A") : "A", datasetLabel });
+    }
+  } else {
+    session = await createSession({
+      actorType: "synthetic",
+      variant: input.variant,
+      agentRun: {
+        modelId: input.modelId,
+        promptVersion: input.promptVersion,
+        personaId: input.personaId,
+        calibrationId: input.calibrationId,
+      },
+    });
+  }
 
   const origin = new URL(request.url).origin;
   const path = input.actorType === "human" ? `/s/${session.token}` : `/s/${session.token}/billing`;
-  return Response.json({ id: session.id, token: session.token, link: `${origin}${path}` }, { status: 201 });
+  return Response.json(
+    { id: session.id, token: session.token, link: `${origin}${path}`, variant: session.variant },
+    { status: 201 },
+  );
 }

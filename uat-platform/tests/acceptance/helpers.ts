@@ -4,8 +4,8 @@ import { createSession } from "@/lib/session";
 // Each test runs on a session of its own, created the same way the seed script
 // and the researcher console create them.
 
-export function newHumanSession() {
-  return createSession({ actorType: "human", variant: "A", datasetLabel: "pilot", familiarityBand: "low" });
+export function newHumanSession(variant: "A" | "B" = "A") {
+  return createSession({ actorType: "human", variant, datasetLabel: "pilot", familiarityBand: "low" });
 }
 
 export function newSyntheticSession() {

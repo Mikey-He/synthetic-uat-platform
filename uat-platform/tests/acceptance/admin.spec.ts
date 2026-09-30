@@ -97,12 +97,16 @@ test("End session records a session the participant left as abandoned", async ({
 });
 
 test("Re-score adds evaluation rows and keeps the earlier ones", async ({ page }) => {
+  test.setTimeout(90_000);
   await newHumanSession();
   const before = await db.evaluation.findMany({ select: { id: true } });
   const sessions = await db.session.count();
   await signIn(page);
+  // The session list grows with the test database; the button works once the page has hydrated.
+  await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Re-score" }).click();
-  await expect(page.getByText(`Re-scored ${sessions} sessions with eval-v1.`)).toBeVisible();
+  // Re-scoring walks every stored session, so it also slows as the database grows.
+  await expect(page.getByText(`Re-scored ${sessions} sessions with eval-v1.`)).toBeVisible({ timeout: 60_000 });
 
   const after = await db.evaluation.findMany({ select: { id: true } });
   expect(after.length).toBe(before.length + sessions);

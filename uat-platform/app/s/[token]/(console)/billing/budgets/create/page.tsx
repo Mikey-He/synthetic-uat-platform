@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ReferenceCreateForm } from "@/components/budget/ReferenceCreateForm";
+import { GuidedSetup } from "@/components/guided/GuidedSetup";
 import { getBudget, getDraft, type Draft } from "@/lib/budgets";
 import { defaults, fixture } from "@/lib/fixtures";
 import { getParticipantSession, readVariant } from "@/lib/session";
@@ -55,7 +56,20 @@ export default async function CreateBudgetPage({ params, searchParams }: Props) 
         />
       );
     case "B":
-      // TODO: render GuidedSetup from components/variant-b once version B is built.
-      notFound();
+      // A saved budget opened from the list lands on the review screen.
+      return (
+        <GuidedSetup
+          key={crypto.randomUUID()}
+          token={token}
+          data={{
+            ...data,
+            billingAccount: fixture.billingAccount,
+            billingMembers: fixture.billingMembers,
+            projectOwners: fixture.projectOwners,
+          }}
+          initialConfig={start.config}
+          editingBudgetId={start.editingBudgetId}
+        />
+      );
   }
 }

@@ -76,3 +76,16 @@ test("participant pages and participant API responses never show scoring or the 
   expect([...keys].filter((key) => FORBIDDEN.test(key))).toEqual([]);
   expect(keys.has("budgetId")).toBe(true); // the save response was inspected
 });
+
+test("guided setup pages never show scoring or the variant", async ({ page }) => {
+  const session = await newHumanSession("B");
+  const base = `/s/${session.token}`;
+  await expectClean(page, `${base}/billing/budgets/create`);
+  await page.getByLabel("Budget name").fill("Atlas monthly");
+  for (let screen = 2; screen <= 7; screen++) {
+    if (screen === 5) await page.getByLabel("Amount in dollars").fill("1000");
+    await page.getByRole("button", { name: /^Continue to/ }).click();
+    const text = await page.locator("body").innerText();
+    expect(text, `screen ${screen}`).not.toMatch(FORBIDDEN);
+  }
+});

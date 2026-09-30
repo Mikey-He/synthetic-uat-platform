@@ -5,11 +5,13 @@ import { useState, type FormEvent } from "react";
 
 // Researcher console controls. None of them asks for a name or an email.
 
-function CopyLink({ link }: { link: string }) {
+type Created = { link: string; variant: string };
+
+function CopyLink({ link, variant }: Created) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="mt-6 max-w-2xl rounded-lg border border-line p-4">
-      <p className="font-medium">Participant link</p>
+      <p className="font-medium">Participant link · variant {variant}</p>
       <div className="mt-2 flex gap-2">
         <input readOnly value={link} aria-label="Participant link" className="field flex-1" />
         <button
@@ -34,30 +36,40 @@ async function createSession(body: Record<string, unknown>) {
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`Session not created (${response.status}).`);
-  return ((await response.json()) as { link: string }).link;
+  return (await response.json()) as Created;
 }
 
 function useCreate() {
-  const [link, setLink] = useState<string | null>(null);
+  const [created, setCreated] = useState<Created | null>(null);
   const [error, setError] = useState<string | null>(null);
   const submit = (read: (form: FormData) => Record<string, unknown>) => async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     try {
-      setLink(await createSession(read(new FormData(event.currentTarget))));
+      setCreated(await createSession(read(new FormData(event.currentTarget))));
     } catch (e) {
       setError((e as Error).message);
     }
   };
-  return { link, error, submit };
+  return { created, error, submit };
 }
 
-const Select = ({ name, label, options }: { name: string; label: string; options: string[] }) => (
+type SelectProps = {
+  name: string;
+  label: string;
+  options: string[];
+  optionLabels?: Record<string, string>;
+  onChange?: (value: string) => void;
+};
+
+const Select = ({ name, label, options, optionLabels = {}, onChange }: SelectProps) => (
   <label className="block">
     <span className="block font-medium">{label}</span>
-    <select name={name} className="field mt-1.5 w-72">
+    <select name={name} className="field mt-1.5 w-96" onChange={(event) => onChange?.(event.target.value)}>
       {options.map((option) => (
-        <option key={option}>{option}</option>
+        <option key={option} value={option}>
+          {optionLabels[option] ?? option}
+        </option>
       ))}
     </select>
   </label>
@@ -71,7 +83,8 @@ const Text = ({ name, label, required = true }: { name: string; label: string; r
 );
 
 export function NewHumanSessionForm() {
-  const { link, error, submit } = useCreate();
+  const { created, error, submit } = useCreate();
+  const [label, setLabel] = useState("pilot");
   return (
     <>
       <form
@@ -80,27 +93,39 @@ export function NewHumanSessionForm() {
           actorType: "human",
           familiarityBand: form.get("familiarityBand"),
           datasetLabel: form.get("datasetLabel"),
+          ...(label === "pilot" ? { variant: form.get("variant") } : {}),
         }))}
       >
         <Select name="familiarityBand" label="Familiarity band" options={["low", "medium", "high"]} />
-        <Select name="datasetLabel" label="Dataset label" options={["pilot", "calibration_A", "evaluation_A"]} />
-        <div>
-          <span className="block font-medium">Variant</span>
-          {/* TODO: version B and block assignment within each band come with the version B build. */}
-          <p className="mt-1.5">A</p>
-        </div>
+        <Select
+          name="datasetLabel"
+          label="Dataset label"
+          options={["pilot", "calibration_A", "evaluation"]}
+          optionLabels={{ evaluation: "evaluation_A or evaluation_B (block assignment)" }}
+          onChange={setLabel}
+        />
+        {label === "pilot" ? (
+          <Select name="variant" label="Variant" options={["A", "B"]} />
+        ) : (
+          <div>
+            <span className="block font-medium">Variant</span>
+            <p className="mt-1.5">
+              {label === "calibration_A" ? "A" : "Assigned in blocks of two within the familiarity band"}
+            </p>
+          </div>
+        )}
         <button type="submit" className="btn-primary">
           Create session
         </button>
       </form>
       {error && <p className="mt-4 text-error">{error}</p>}
-      {link && <CopyLink link={link} />}
+      {created && <CopyLink {...created} />}
     </>
   );
 }
 
 export function NewSyntheticSessionForm() {
-  const { link, error, submit } = useCreate();
+  const { created, error, submit } = useCreate();
   return (
     <>
       <form
@@ -111,12 +136,14 @@ export function NewSyntheticSessionForm() {
           promptVersion: form.get("promptVersion"),
           personaId: form.get("personaId"),
           calibrationId: (form.get("calibrationId") as string).trim() || null,
+          variant: form.get("variant"),
         }))}
       >
         <Text name="modelId" label="Model ID" />
         <Text name="promptVersion" label="Prompt version" />
         <Text name="personaId" label="Persona ID" />
         <Text name="calibrationId" label="Calibration ID (optional)" required={false} />
+        <Select name="variant" label="Variant" options={["A", "B"]} />
         <div>
           <span className="block font-medium">Dataset label</span>
           <p className="mt-1.5">synthetic</p>
@@ -126,7 +153,7 @@ export function NewSyntheticSessionForm() {
         </button>
       </form>
       {error && <p className="mt-4 text-error">{error}</p>}
-      {link && <CopyLink link={link} />}
+      {created && <CopyLink {...created} />}
     </>
   );
 }
