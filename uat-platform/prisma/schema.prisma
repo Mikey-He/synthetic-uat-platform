@@ -1,0 +1,11 @@
+// Tables come in later steps (docs/build-plan.md, Data model).
+// The connection string is DATABASE_URL, read in prisma.config.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
