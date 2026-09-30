@@ -3,8 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { budgetConfigSchema, draftBodySchema } from "@/lib/domain/schemas";
 import type { BudgetConfig } from "@/lib/domain/types";
-import { evaluate } from "@/lib/evaluator/evaluate";
-import { fixture } from "@/lib/fixtures";
+import { writeEvaluation } from "@/lib/scoring";
 
 // Server only. Drafts, budgets and evaluations hang off the session.
 
@@ -68,19 +67,7 @@ export async function saveBudget(sessionId: string, config: BudgetConfig, editin
 
     await tx.budget.create({ data: { id, version, sessionId, config: toJson(config) } });
 
-    const result = evaluate(config, true, fixture);
-    await tx.evaluation.create({
-      data: {
-        sessionId,
-        budgetId: id,
-        budgetVersion: version,
-        criteria: toJson(result.criteria),
-        overallSuccess: result.overall,
-        resolvedRecipients: toJson(result.people),
-        recipientMechanisms: toJson(Object.fromEntries(result.people.map((p) => [p.id, p.via]))),
-        evaluatorVersion: result.version,
-      },
-    });
+    await writeEvaluation(tx, sessionId, { saved: true, config, budgetId: id, version });
 
     await tx.budgetDraft.deleteMany({ where: { sessionId } });
     return { id, version };

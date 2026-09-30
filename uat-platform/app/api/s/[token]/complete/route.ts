@@ -1,6 +1,7 @@
 import { liveSession } from "@/lib/api";
 import { db } from "@/lib/db";
 import { eventBatchSchema, insertEvents } from "@/lib/events/server";
+import { scoreEndedSession } from "@/lib/scoring";
 
 type Context = { params: Promise<{ token: string }> };
 
@@ -21,6 +22,7 @@ export async function POST(request: Request, { params }: Context) {
       where: { id: live.session.id },
       data: { endedAt: new Date(), terminationReason: "completion_declared" },
     });
+    await scoreEndedSession(tx, live.session.id);
   });
   return new Response(null, { status: 204 });
 }

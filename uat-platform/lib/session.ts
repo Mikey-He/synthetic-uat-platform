@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { TASK_VERSION } from "@/lib/domain/task";
 import { EVALUATOR_VERSION } from "@/lib/evaluator/evaluate";
 import { defaults, defaultsHash, fixture, fixtureHash } from "@/lib/fixtures";
+import { scoreEndedSession } from "@/lib/scoring";
 
 // Server only. A session is one attempt by one actor, human or synthetic.
 
@@ -85,5 +86,28 @@ export async function createSession(input: NewSession) {
   }
   return db.session.create({
     data: { ...base, actorType: "synthetic", datasetLabel: "synthetic", agentRun: { create: input.agentRun } },
+  });
+}
+
+// The researcher ends a session the participant left. The server writes the
+// session_ended event itself, numbered after the last event the session sent.
+export async function abandonSession(sessionId: string) {
+  return db.$transaction(async (tx) => {
+    const session = await tx.session.findUniqueOrThrow({ where: { id: sessionId } });
+    if (session.endedAt) return false;
+    const now = new Date();
+    const last = await tx.event.aggregate({ where: { sessionId }, _max: { seq: true } });
+    await tx.event.create({
+      data: {
+        sessionId,
+        seq: (last._max.seq ?? 0) + 1,
+        clientTs: now,
+        type: "session_ended",
+        payload: { terminationReason: "abandoned", endedBy: "researcher" },
+      },
+    });
+    await tx.session.update({ where: { id: sessionId }, data: { endedAt: now, terminationReason: "abandoned" } });
+    await scoreEndedSession(tx, sessionId);
+    return true;
   });
 }
