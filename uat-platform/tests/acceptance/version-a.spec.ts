@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { db } from "@/lib/db";
+import { BudgetForm } from "./budgetForm";
 import { newHumanSession } from "./helpers";
 
 let token: string;
@@ -15,51 +16,41 @@ test.afterAll(async () => {
   await db.$disconnect();
 });
 
-async function openCreateForm(page: Page) {
-  await page.goto(`/s/${token}/billing/budgets`);
-  await page.getByRole("link", { name: "Create budget" }).click();
-  await expect(page.getByRole("heading", { name: "Create budget" })).toBeVisible();
-}
-
 test("a person saves the correct Atlas budget by clicking, and reopens it", async ({ page }) => {
-  await openCreateForm(page);
+  const form = new BudgetForm(page, token);
+  await form.open();
+  const next = page.getByRole("button", { name: "Next", exact: true });
 
-  // 1 Define
-  await page.getByLabel("Name", { exact: true }).fill("Atlas monthly");
-  await page.getByRole("button", { name: "Next", exact: true }).click();
+  // 1 Define: neither kind is chosen at first, as in the capture
+  await expect(page.getByRole("radio", { name: /Alerts only/ })).not.toBeChecked();
+  await page.getByRole("radio", { name: /Alerts only/ }).check();
+  await form.nameField.fill("Atlas monthly");
+  await next.click();
 
   // 2 Scope: the time range stays Monthly; the projects go from all to Atlas only
-  const projects = page.getByRole("button", { name: /^Projects/ });
-  await expect(projects).toContainText("All projects");
-  await projects.click();
-  await page.getByRole("checkbox", { name: "Select all" }).uncheck();
-  await page.getByRole("checkbox", { name: "Atlas", exact: true }).check();
-  await page.keyboard.press("Escape");
-  await expect(projects).toHaveText("Atlas");
-  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(form.projectsDropdown).toContainText("All projects (2)");
+  await form.projectsDropdown.click();
+  await page.getByRole("checkbox", { name: /^Atlas/ }).check();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(form.projectsDropdown).toContainText("Atlas");
+  await next.click();
 
   // 3 Amount
-  await page.getByLabel("Target amount").fill("1000");
-  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await form.targetField.fill("1000");
+  await next.click();
 
   // 4 Actions: first rule to 80% actual, alert only the project owner
-  await page.getByRole("textbox", { name: "Percent of budget" }).first().fill("80");
-  await page.getByRole("checkbox", { name: "Email alerts to billing admins and users" }).uncheck();
-  await page.getByRole("checkbox", { name: /Email alerts to project owners/ }).check();
+  await form.percentFields.first().fill("80");
+  await form.billingAdmins.uncheck();
+  await form.projectOwners.check();
 
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await expect(page).toHaveURL(/\/billing\/budgets\/[0-9a-f-]{36}$/);
+  await form.finishAndExpectSaved();
 
-  // Saved view shows the saved values
-  await expect(page.getByRole("heading", { name: "Atlas monthly" })).toBeVisible();
-  const main = page.locator("main");
-  for (const text of ["Monthly", "Atlas", "Specified amount", "$1,000.00", "80%", "$800.00"]) {
-    await expect(main).toContainText(text);
+  // The list shows the saved budget
+  const row = page.getByRole("row", { name: /Atlas monthly/ });
+  for (const text of ["Monthly", "Alerts only", "Atlas", "80%, 90%, and 100%", "$1,000.00"]) {
+    await expect(row).toContainText(text);
   }
-  await expect(
-    page.getByRole("checkbox", { name: "Email alerts to billing admins and users" }),
-  ).not.toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /Email alerts to project owners/ })).toBeChecked();
 
   // The stored evaluation passes every criterion
   const evaluation = await db.evaluation.findFirst({
@@ -76,41 +67,39 @@ test("a person saves the correct Atlas budget by clicking, and reopens it", asyn
     persistence: true,
   });
 
-  // Reopen: the create form loads the saved values
-  await page.getByRole("link", { name: "Edit" }).click();
-  await expect(page.getByRole("heading", { name: "Create budget" })).toBeVisible();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Atlas monthly");
-  await page.getByRole("button", { name: /Scope/ }).click();
-  await expect(page.getByRole("button", { name: /^Projects/ })).toHaveText("Atlas");
-  await page.getByRole("button", { name: /Amount/ }).click();
-  await expect(page.getByLabel("Target amount")).toHaveValue("1000");
-  await page.getByRole("button", { name: /Actions/ }).click();
-  await expect(page.getByRole("textbox", { name: "Percent of budget" }).first()).toHaveValue("80");
-  await expect(page.getByRole("checkbox", { name: /Email alerts to project owners/ })).toBeChecked();
+  // Reopen: Edit Budget shows every section with the saved values
+  await form.openSaved("Atlas monthly");
+  await expect(form.nameField).toHaveValue("Atlas monthly");
+  await expect(form.projectsDropdown).toContainText("Atlas");
+  await expect(form.targetField).toHaveValue("1000");
+  await expect(form.percentFields.first()).toHaveValue("80");
+  await expect(form.projectOwners).toBeChecked();
 
   // Saving again writes a new version of the same budget
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await expect(page).toHaveURL(/\/billing\/budgets\/[0-9a-f-]{36}$/);
+  await form.save();
+  await expect(page).toHaveURL(/\/billing\/budgets$/);
   const versions = await db.budget.findMany({ where: { sessionId }, orderBy: { version: "asc" } });
   expect(versions.map((row) => row.version)).toEqual([1, 2]);
   expect(new Set(versions.map((row) => row.id)).size).toBe(1);
 });
 
 test("the draft survives a reload", async ({ page }) => {
-  await openCreateForm(page);
-  await page.getByLabel("Name", { exact: true }).fill("Draft only");
+  const form = new BudgetForm(page, token);
+  await form.open();
+  await form.nameField.fill("Draft only");
   await expect
     .poll(async () => (await db.budgetDraft.findUnique({ where: { sessionId } }))?.draft)
     .toMatchObject({ config: { name: "Draft only" } });
   await page.reload();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Draft only");
+  await expect(form.nameField).toHaveValue("Draft only");
 });
 
 test("a missing name shows validation and nothing is saved", async ({ page }) => {
-  await openCreateForm(page);
-  await page.getByRole("button", { name: /Actions/ }).click();
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  const form = new BudgetForm(page, token);
+  await form.open();
+  await form.openSection("Actions");
+  await form.finish();
   await expect(page.getByText("Enter a budget name.")).toBeVisible();
-  await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+  await expect(form.nameField).toBeVisible();
   expect(await db.budget.count({ where: { sessionId } })).toBe(0);
 });

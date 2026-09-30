@@ -3,7 +3,7 @@ import { resolveRecipients } from "@/lib/domain/resolveRecipients";
 import {
   emailOptionsEnabled,
   parseNumber,
-  projectOwnersOffered,
+  projectOwnersAvailable,
   updateConfig,
   validateConfig,
 } from "@/lib/domain/rules";
@@ -22,8 +22,8 @@ function atlasWithOwners(): BudgetConfig {
 
 describe("scope clears the project owners option", () => {
   it("offers project owners only for exactly one project", () => {
-    expect(projectOwnersOffered(fromDefaults())).toBe(false);
-    expect(projectOwnersOffered(atlasWithOwners())).toBe(true);
+    expect(projectOwnersAvailable(fromDefaults())).toBe(false);
+    expect(projectOwnersAvailable(atlasWithOwners())).toBe(true);
   });
 
   it("clears a checked option when a second project is added, and reports it", () => {
@@ -98,7 +98,6 @@ describe("validation", () => {
     ]).config;
     expect(validateConfig(broken)).toEqual([
       { field: "name", code: "name_required" },
-      { field: "scope.projectIds", code: "project_required" },
       { field: "amount.target", code: "amount_invalid" },
       { field: "thresholds.1.percent", code: "percent_invalid" },
       { field: "recipients", code: "recipient_required" },

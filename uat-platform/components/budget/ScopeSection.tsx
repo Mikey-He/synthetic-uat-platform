@@ -1,16 +1,15 @@
 "use client";
 
-import { useId } from "react";
-import { MultiSelect, Select } from "@/components/console/Dropdown";
+import { useState } from "react";
+import { ChecklistDropdown, Select } from "@/components/console/Dropdown";
 import type { BudgetConfig, Fixture } from "@/lib/domain/types";
-import { Checkbox, FieldError } from "./fields";
+import { Checkbox } from "./fields";
 import type { Change } from "./formStore";
-import { PERIOD_OPTIONS, SAVINGS_OPTIONS, labelOptionText, projectsLabel } from "./labels";
+import { PERIOD_OPTIONS, SAVINGS_OPTIONS, labelOptionText, projectsLabel, servicesLabel } from "./labels";
 
 type Props = {
   config: BudgetConfig;
-  data: Pick<Fixture, "projects" | "folders" | "services" | "labels">;
-  errors: Map<string, string>;
+  data: Pick<Fixture, "projects" | "services" | "labels">;
   change: Change;
 };
 
@@ -20,143 +19,118 @@ const toggled = (selected: string[], value: string, order: string[]) => {
   return order.filter((v) => next.includes(v));
 };
 
-export function ScopeSection({ config, data, errors, change }: Props) {
-  const periodId = useId();
-  const foldersId = useId();
-  const projectsId = useId();
-  const servicesId = useId();
-  const labelsId = useId();
+// Order and wording follow the reference capture. The account has no
+// organization, so there is no Folders & organizations picker.
+export function ScopeSection({ config, data, change }: Props) {
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const { scope } = config;
-  const projectIds = data.projects.map((project) => project.id);
   const labelValues = data.labels.flatMap((label) => label.values.map((value) => `${label.key}:${value}`));
-  const projectsError = errors.get("scope.projectIds");
-
-  // Select all checked means the entire account. Unchecking it clears every
-  // project, and the projects checked afterwards become the explicit list.
-  const toggleSelectAll = () =>
-    change([
-      ["scope.allProjects", !scope.allProjects],
-      ["scope.projectIds", []],
-    ]);
-
-  const toggleProject = (id: string) => {
-    const current = scope.allProjects ? projectIds : scope.projectIds;
-    change([
-      ["scope.allProjects", false],
-      ["scope.projectIds", toggled(current, id, projectIds)],
-    ]);
-  };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div data-setting="period">
-        <p id={periodId} className="font-medium">
-          Time range
-        </p>
         <Select
-          labelId={periodId}
+          label="Time range"
           value={config.period}
           options={PERIOD_OPTIONS}
           onChange={(period) => change([["period", period]])}
-          className="mt-1.5 w-72"
+          className="w-full"
         />
+        {/* TODO: the capture shows the helper for Monthly only. */}
+        {config.period === "monthly" && (
+          <p className="ml-4 mt-1 text-[12px] leading-4 text-muted">
+            The month starts on the first of the month and resets at the beginning of each month.
+          </p>
+        )}
         {config.period === "custom" && (
-          <div className="mt-3 flex gap-4">
-            <label className="block">
-              <span className="block text-muted">From</span>
-              <input
-                type="date"
-                value={config.customRange?.from ?? ""}
-                onChange={(event) => change([["customRange.from", event.target.value]])}
-                className="field mt-1 w-44"
+          <div className="mt-4 flex gap-4">
+            <input
+              type="date"
+              aria-label="From"
+              value={config.customRange?.from ?? ""}
+              onChange={(event) => change([["customRange.from", event.target.value]])}
+              className="field h-11 w-48"
+            />
+            <input
+              type="date"
+              aria-label="To"
+              value={config.customRange?.to ?? ""}
+              onChange={(event) => change([["customRange.to", event.target.value || undefined]])}
+              className="field h-11 w-48"
+            />
+          </div>
+        )}
+      </div>
+
+      <Checkbox
+        label="Read-only for project users (single-project budgets only)"
+        checked={scope.readOnlyForProjectUsers}
+        onChange={(checked) => change([["scope.readOnlyForProjectUsers", checked]])}
+      />
+      <p>
+        Marking a budget read-only for project users restricts any inadvertent edits to important
+        budgets tracked centrally.
+      </p>
+      <p>A budget can be scoped to focus on a specific set of resources.</p>
+
+      {/* No project checked means every project, as in the capture. */}
+      <div data-setting="scope">
+        <ChecklistDropdown
+          label="Projects"
+          display={projectsLabel(scope, data.projects)}
+          options={data.projects.map((project) => ({ value: project.id, label: project.name, detail: project.id }))}
+          selected={scope.allProjects ? [] : scope.projectIds}
+          onApply={(ids) =>
+            change([
+              ["scope.allProjects", ids.length === 0],
+              ["scope.projectIds", ids],
+            ])
+          }
+        />
+      </div>
+
+      <ChecklistDropdown
+        label="Services"
+        display={servicesLabel(scope.filters.services, data.services)}
+        options={data.services.map((service) => ({ value: service, label: service }))}
+        selected={scope.filters.services}
+        onApply={(services) => change([["scope.filters.services", services]])}
+      />
+
+      <div>
+        <button
+          type="button"
+          aria-expanded={labelsOpen}
+          onClick={() => setLabelsOpen((value) => !value)}
+          className="flex w-full items-center justify-between py-1 text-left"
+        >
+          <span className="text-[16px] font-medium">Labels</span>
+          <Chevron up={labelsOpen} />
+        </button>
+        <p className="text-[12px] leading-4 text-muted">Select the key and value of the label you want to filter.</p>
+        {/* TODO: the capture shows Labels collapsed only; its open contents are not captured. */}
+        {labelsOpen && (
+          <div className="mt-2">
+            {labelValues.map((value) => (
+              <Checkbox
+                key={value}
+                label={labelOptionText(value)}
+                checked={scope.filters.labels.includes(value)}
+                onChange={() =>
+                  change([["scope.filters.labels", toggled(scope.filters.labels, value, labelValues)]])
+                }
               />
-            </label>
-            <label className="block">
-              <span className="block text-muted">To</span>
-              <input
-                type="date"
-                value={config.customRange?.to ?? ""}
-                onChange={(event) => change([["customRange.to", event.target.value || undefined]])}
-                className="field mt-1 w-44"
-              />
-            </label>
+            ))}
           </div>
         )}
       </div>
 
       <div>
-        <p id={foldersId} className="font-medium">
-          Folders &amp; organizations
+        <p className="text-[16px] font-medium">Savings</p>
+        <p className="text-[12px] leading-4 text-muted">
+          Selected credits are applied to the total cost. Budget tracks the total cost minus any
+          applicable selected credits.
         </p>
-        <MultiSelect
-          labelId={foldersId}
-          display={data.folders
-            .filter((folder) => scope.filters.folders.includes(folder.id))
-            .map((folder) => folder.name)
-            .join(", ")}
-          options={data.folders.map((folder) => ({ value: folder.id, label: folder.name }))}
-          selected={scope.filters.folders}
-          onToggle={(id) =>
-            change([
-              ["scope.filters.folders", toggled(scope.filters.folders, id, data.folders.map((f) => f.id))],
-            ])
-          }
-          emptyText="No folders in this account"
-          className="mt-1.5 w-72"
-        />
-      </div>
-
-      <div data-setting="scope">
-        <p id={projectsId} className="font-medium">
-          Projects
-        </p>
-        <MultiSelect
-          labelId={projectsId}
-          display={projectsLabel(scope, data.projects)}
-          options={data.projects.map((project) => ({ value: project.id, label: project.name }))}
-          selected={scope.allProjects ? projectIds : scope.projectIds}
-          onToggle={toggleProject}
-          selectAll={{ checked: scope.allProjects, onToggle: toggleSelectAll }}
-          invalid={Boolean(projectsError)}
-          className="mt-1.5 w-72"
-        />
-        <FieldError message={projectsError} />
-      </div>
-
-      <div>
-        <p id={servicesId} className="font-medium">
-          Services
-        </p>
-        <MultiSelect
-          labelId={servicesId}
-          display={scope.filters.services.join(", ")}
-          options={data.services.map((service) => ({ value: service, label: service }))}
-          selected={scope.filters.services}
-          onToggle={(service) =>
-            change([["scope.filters.services", toggled(scope.filters.services, service, data.services)]])
-          }
-          className="mt-1.5 w-72"
-        />
-      </div>
-
-      <div>
-        <p id={labelsId} className="font-medium">
-          Labels
-        </p>
-        <MultiSelect
-          labelId={labelsId}
-          display={scope.filters.labels.map(labelOptionText).join(", ")}
-          options={labelValues.map((value) => ({ value, label: labelOptionText(value) }))}
-          selected={scope.filters.labels}
-          onToggle={(value) =>
-            change([["scope.filters.labels", toggled(scope.filters.labels, value, labelValues)]])
-          }
-          className="mt-1.5 w-72"
-        />
-      </div>
-
-      <fieldset>
-        <legend className="font-medium">Savings</legend>
         <div className="mt-1">
           {SAVINGS_OPTIONS.map((option) => (
             <Checkbox
@@ -165,22 +139,28 @@ export function ScopeSection({ config, data, errors, change }: Props) {
               checked={scope.savings.includes(option.value)}
               onChange={() =>
                 change([
-                  [
-                    "scope.savings",
-                    toggled(scope.savings, option.value, SAVINGS_OPTIONS.map((o) => o.value)),
-                  ],
+                  ["scope.savings", toggled(scope.savings, option.value, SAVINGS_OPTIONS.map((o) => o.value))],
                 ])
               }
             />
           ))}
         </div>
-      </fieldset>
-
-      <Checkbox
-        label="Read-only for project users"
-        checked={scope.readOnlyForProjectUsers}
-        onChange={(checked) => change([["scope.readOnlyForProjectUsers", checked]])}
-      />
+      </div>
     </div>
+  );
+}
+
+export function Chevron({ up }: { up: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6 text-muted" aria-hidden="true">
+      <path
+        d={up ? "M7 14l5-5 5 5" : "M7 10l5 5 5-5"}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

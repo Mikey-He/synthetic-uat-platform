@@ -15,7 +15,7 @@ If two documents disagree, the design guide wins. If the guide is silent or uncl
 
 1. Build only the step you were given. Do not start the next one.
 2. Do not add features, pages, buttons or UI text that the documents or the prompt do not specify. If a screen needs text that is not written anywhere, stop and ask.
-3. Starting values come only from `lib/fixtures/defaults-v1.json`. Never prefill the task answer (Atlas only, $1,000, 80% actual, project owner only).
+3. Starting values come only from `lib/fixtures/defaults-v2.json` (defaults-v1 stays frozen for earlier sessions). Never prefill the task answer (Atlas only, $1,000, 80% actual, project owner only).
 4. The variant (A or B) must never appear in the URL, the DOM, the page title, CSS class names or client-side bundles sent to participants. The server reads it from the session record.
 5. The create route is the only place that branches on variant. Nothing else may branch on it.
 6. The evaluator in `lib/evaluator/` is a pure function. No database, network, clock or randomness inside it.

@@ -30,7 +30,7 @@ export async function lastEventSeq(sessionId: string) {
   return result._max.seq ?? 0;
 }
 
-// Freezes fixture-v1 and defaults-v1 in the database the first time, and
+// Freezes the fixture and defaults files in the database the first time, and
 // refuses to go on if a frozen file has changed since.
 export async function ensureFixtureVersions() {
   const files = [

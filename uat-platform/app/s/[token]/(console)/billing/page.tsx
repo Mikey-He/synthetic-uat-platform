@@ -1,7 +1,7 @@
 import { CostChart, projectColor } from "@/components/console/CostChart";
 import { costMonths, currentMonth, projectCost, totalCost } from "@/lib/domain/costs";
 import { fixture } from "@/lib/fixtures";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, monthSpanLabel } from "@/lib/format";
 
 export default function OverviewPage() {
   const projectIds = fixture.projects.map((project) => project.id);
@@ -19,8 +19,9 @@ export default function OverviewPage() {
       </dl>
 
       <section className="mt-6 w-fit rounded-lg border border-line px-5 py-4">
-        <h2 className="text-muted">This month&apos;s cost so far</h2>
-        <p className="mt-1 text-[28px] leading-9">{formatMoney(soFar, fixture.currency)}</p>
+        <h2 className="text-[16px] font-medium">Your total cost</h2>
+        <p className="text-muted">{monthSpanLabel(currentMonth(fixture))}</p>
+        <p className="mt-2 text-[28px] leading-9">{formatMoney(soFar, fixture.currency)}</p>
       </section>
 
       <section className="mt-6 w-fit rounded-lg border border-line px-5 py-4">

@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Dropdown, Select } from "@/components/console/Dropdown";
+import { HelpPopover } from "@/components/console/HelpPopover";
 import { budgetAmount, type CostData } from "@/lib/domain/costs";
-import { emailOptionsEnabled, parseNumber, projectOwnersOffered } from "@/lib/domain/rules";
+import { emailOptionsEnabled, parseNumber, projectOwnersAvailable } from "@/lib/domain/rules";
 import type { BudgetConfig } from "@/lib/domain/types";
-import { formatMoney } from "@/lib/format";
-import { Checkbox, FieldError, PreviewTag } from "./fields";
+import { Checkbox, FieldError, OutlinedInput } from "./fields";
 import type { Change } from "./formStore";
 import { TRIGGER_OPTIONS } from "./labels";
 
@@ -15,141 +15,136 @@ type Props = {
   token: string;
   config: BudgetConfig;
   percentTexts: string[];
-  data: CostData & { currency: string };
+  data: CostData;
   errors: Map<string, string>;
   change: Change;
 };
 
+// "5" for 5.00, "12.5" for 12.50.
+const plain = (value: number) => String(Math.round(value * 100) / 100);
+
 export function ActionsSection({ token, config, percentTexts, data, errors, change }: Props) {
-  const percentHeaderId = useId();
-  const triggerHeaderId = useId();
+  const idPrefix = useId();
   const monitoringGroup = useId();
   const { thresholds, recipients } = config;
   const base = budgetAmount(data, config);
   const emailEnabled = emailOptionsEnabled(config);
+  const ownersAvailable = projectOwnersAvailable(config);
+
+  const setPercent = (index: number, percent: number, text: string) =>
+    change([[`thresholds.${index}.percent`, percent]], {
+      percentTexts: percentTexts.map((t, i) => (i === index ? text : t)),
+    });
 
   const removeThreshold = (index: number) =>
     change([["thresholds", thresholds.filter((_, i) => i !== index)]], {
       percentTexts: percentTexts.filter((_, i) => i !== index),
     });
 
+  // A new rule starts at 0% of actual spend, as in the capture.
   const addThreshold = () =>
-    change([["thresholds", [...thresholds, { percent: 100, trigger: "actual" }]]], {
-      percentTexts: [...percentTexts, "100"],
+    change([["thresholds", [...thresholds, { percent: 0, trigger: "actual" }]]], {
+      percentTexts: [...percentTexts, "0"],
     });
 
   return (
     <>
       <div data-setting="alert">
-        <p className="font-medium">Set alert threshold rules</p>
-        <table className="mt-2 w-full border-collapse text-left">
-          <thead>
-            <tr className="border-b border-line text-muted">
-              <th id={percentHeaderId} className="py-2 pr-4 font-medium">
-                Percent of budget
-              </th>
-              <th className="py-2 pr-4 font-medium">Amount</th>
-              <th id={triggerHeaderId} className="py-2 pr-4 font-medium">
-                Trigger on
-              </th>
-              <th className="w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            {thresholds.map((threshold, index) => {
-              const error = errors.get(`thresholds.${index}.percent`);
-              return (
-                <tr key={index} className="border-b border-line align-top">
-                  <td className="py-2 pr-4">
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        aria-labelledby={percentHeaderId}
-                        value={percentTexts[index] ?? ""}
-                        onChange={(event) =>
-                          change(
-                            [[`thresholds.${index}.percent`, parseNumber(event.target.value) ?? Number.NaN]],
-                            {
-                              percentTexts: percentTexts.map((text, i) =>
-                                i === index ? event.target.value : text,
-                              ),
-                            },
-                          )
-                        }
-                        className={`field w-20 ${error ? "border-error" : ""}`}
-                      />
-                      <span className="text-muted">%</span>
-                    </div>
-                    <FieldError message={error} />
-                  </td>
-                  <td className="py-2 pr-4 leading-9">
-                    {base !== undefined && Number.isFinite(threshold.percent)
-                      ? formatMoney((base * threshold.percent) / 100, data.currency)
-                      : "—"}
-                  </td>
-                  <td className="py-2 pr-4">
-                    <Select
-                      labelId={triggerHeaderId}
-                      value={threshold.trigger}
-                      options={TRIGGER_OPTIONS}
-                      onChange={(trigger) => change([[`thresholds.${index}.trigger`, trigger]])}
-                      className="w-40"
+        <p className="text-[16px] font-medium">Set alert threshold rules</p>
+        <p className="mt-1">
+          Send email alert notifications after the actual or forecasted spend exceeds a percent of the
+          budget or a specified amount.
+        </p>
+        <div className="mt-5 space-y-5">
+          {thresholds.map((threshold, index) => {
+            const error = errors.get(`thresholds.${index}.percent`);
+            const n = index + 1;
+            return (
+              <div key={index} className="group flex items-start gap-3">
+                <div className="w-44 shrink-0">
+                  <OutlinedInput
+                    id={`${idPrefix}-percent-${index}`}
+                    label={`Percent of budget ${n} *`}
+                    suffix="%"
+                    inputMode="decimal"
+                    value={percentTexts[index] ?? ""}
+                    invalid={Boolean(error)}
+                    onChange={(text) => setPercent(index, parseNumber(text) ?? Number.NaN, text)}
+                  />
+                  <FieldError message={error} />
+                </div>
+                <AmountField
+                  id={`${idPrefix}-amount-${index}`}
+                  label={`Amount ${n}`}
+                  base={base}
+                  percent={threshold.percent}
+                  onPercent={(percent) => setPercent(index, percent, Number.isNaN(percent) ? "" : plain(percent))}
+                />
+                <Select
+                  label={`Trigger on ${n}`}
+                  value={threshold.trigger}
+                  options={TRIGGER_OPTIONS}
+                  onChange={(trigger) => change([[`thresholds.${index}.trigger`, trigger]])}
+                  className="w-44 shrink-0"
+                />
+                {/* Shown on hover or focus, as in the capture ("Delete item"). */}
+                <button
+                  type="button"
+                  aria-label="Delete item"
+                  title="Delete item"
+                  onClick={() => removeThreshold(index)}
+                  className="mt-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-muted opacity-0 hover:bg-surface focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zm3.5-9h1v8h-1zm4 0h1v8h-1zM15.5 4l-1-1h-5l-1 1H5v2h14V4z"
                     />
-                  </td>
-                  <td className="py-2">
-                    {/* TODO: icon-only button; its aria-label is not written in the docs. */}
-                    <button
-                      type="button"
-                      aria-label="Delete"
-                      onClick={() => removeThreshold(index)}
-                      className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-surface"
-                    >
-                      <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-                        <path
-                          fill="currentColor"
-                          d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zm3.5-9h1v8h-1zm4 0h1v8h-1zM15.5 4l-1-1h-5l-1 1H5v2h14V4z"
-                        />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <button type="button" className="btn-secondary mt-3" onClick={addThreshold}>
+                  </svg>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button type="button" className="btn-secondary mt-5 gap-1" onClick={addThreshold}>
+          <span aria-hidden="true" className="text-[18px] leading-none">
+            +
+          </span>
           Add threshold
         </button>
       </div>
 
-      <div className="mt-6" data-setting="recipients">
-        <p className="font-medium">Manage notifications</p>
+      <div className="mt-8" data-setting="recipients">
+        <p className="text-[16px] font-medium">Manage notifications</p>
         {!emailEnabled && <p className="mt-1 text-muted">Add a threshold rule to turn on email alerts.</p>}
-        <div className="mt-1.5">
+        <div className="mt-1">
           <Checkbox
             label="Email alerts to billing admins and users"
             checked={recipients.billingAdminsAndUsers}
             disabled={!emailEnabled}
             onChange={(checked) => change([["recipients.billingAdminsAndUsers", checked]])}
           />
-          {projectOwnersOffered(config) && (
-            <Checkbox
-              label={
-                <>
-                  Email alerts to project owners <PreviewTag />
-                </>
-              }
-              checked={recipients.projectOwners}
-              disabled={!emailEnabled}
-              onChange={(checked) => change([["recipients.projectOwners", checked]])}
-            />
-          )}
+          {/* Always shown. With one project it works and the (?) goes away; otherwise
+              the (?) explains the limit, as the participant's screenshots showed. */}
+          <Checkbox
+            label="Email alerts to project owners"
+            checked={recipients.projectOwners}
+            disabled={!emailEnabled || !ownersAvailable}
+            onChange={(checked) => change([["recipients.projectOwners", checked]])}
+            help={
+              ownersAvailable ? undefined : (
+                <HelpPopover>
+                  This notification method is limited to budgets configured to monitor a single project.
+                </HelpPopover>
+              )
+            }
+          />
           <Checkbox
             label="Link Monitoring email notification channels to this budget"
             checked={recipients.monitoring.linked}
             disabled={!emailEnabled}
             onChange={(checked) => change([["recipients.monitoring.linked", checked]])}
+            description="Select a project and a maximum of 5 Monitoring email notification channels."
           />
           {recipients.monitoring.linked && (
             <div className="mb-2 ml-7 mt-1 space-y-3">
@@ -180,6 +175,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
             label="Connect a Pub/Sub topic to this budget"
             checked={recipients.pubsubTopic !== undefined}
             onChange={(checked) => change([["recipients.pubsubTopic", checked ? "" : undefined]])}
+            description="Select a project and Pub/Sub topic. Anyone who can view this budget will also be able to view the project ID and the topic name. It may not be possible to add a Pub/Sub topic if it belongs to an organization that has domain restricted sharing enabled."
           />
           {recipients.pubsubTopic !== undefined && (
             <Dropdown display="No topics available" disabled className="mb-2 ml-7 mt-1 w-72">
@@ -190,5 +186,41 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
         <FieldError message={errors.get("recipients")} />
       </div>
     </>
+  );
+}
+
+type AmountFieldProps = {
+  id: string;
+  label: string;
+  base: number | undefined;
+  percent: number;
+  onPercent: (percent: number) => void;
+};
+
+// The dollar value of a rule. It can be typed too, which sets the percent, and
+// it stays greyed out until the budget has an amount, as in the capture.
+function AmountField({ id, label, base, percent, onPercent }: AmountFieldProps) {
+  const [typing, setTyping] = useState<string | null>(null);
+  const usable = base !== undefined && base > 0;
+  const shown = usable && Number.isFinite(percent) ? plain((base * percent) / 100) : "0";
+
+  return (
+    <div className="w-44 shrink-0">
+      <OutlinedInput
+        id={id}
+        label={usable ? `${label} *` : label}
+        prefix="$"
+        inputMode="decimal"
+        value={typing ?? shown}
+        disabled={!usable}
+        onFocus={() => setTyping(shown)}
+        onBlur={() => setTyping(null)}
+        onChange={(text) => {
+          setTyping(text);
+          const amount = parseNumber(text);
+          if (usable) onPercent(amount === undefined ? Number.NaN : Math.round((amount / base) * 10000) / 100);
+        }}
+      />
+    </div>
   );
 }

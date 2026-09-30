@@ -36,18 +36,18 @@ test("correct settings reopened show the same values", async ({ page, request })
   await form.setRecipients({ billing: false, owners: true });
   await form.finishAndExpectSaved();
 
-  const main = page.locator("main");
-  for (const text of ["Atlas monthly", "Monthly", "Atlas", "Specified amount", "$1,000.00", "80%", "Actual"]) {
-    await expect(main).toContainText(text);
+  const row = page.getByRole("row", { name: /Atlas monthly/ });
+  for (const text of ["Monthly", "Atlas", "80%", "$1,000.00"]) {
+    await expect(row).toContainText(text);
   }
-  await page.getByRole("link", { name: "Edit" }).click();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Atlas monthly");
+  await form.openSaved("Atlas monthly");
+  await expect(form.nameField).toHaveValue("Atlas monthly");
   await form.openSection("Scope");
   await expect(page.getByRole("button", { name: /^Time range/ })).toContainText("Monthly");
-  await expect(form.projectsDropdown).toHaveText("Atlas");
+  await expect(form.projectsDropdown).toContainText("Atlas");
   await form.openSection("Amount");
-  await expect(page.getByRole("radio", { name: "Specified amount" })).toBeChecked();
-  await expect(page.getByLabel("Target amount")).toHaveValue("1000");
+  await expect(page.getByRole("button", { name: /^Budget type/ })).toContainText("Specified amount");
+  await expect(form.targetField).toHaveValue("1000");
   await form.openSection("Actions");
   await expect(form.percentFields).toHaveCount(1);
   await expect(form.percentFields.first()).toHaveValue("80");
@@ -109,7 +109,7 @@ test("entire-account scope with account recipients is accepted by the product an
   await form.open();
   await form.setName("Whole account");
   await form.openSection("Scope");
-  await expect(form.projectsDropdown).toHaveText("All projects");
+  await expect(form.projectsDropdown).toContainText("All projects (2)");
   await form.setTarget("1000");
   await form.addThreshold({ percent: "80", trigger: "Actual" });
   await form.finishAndExpectSaved();
@@ -158,7 +158,7 @@ test("the required actual rule beside extra thresholds causes no failure", async
   expect(evaluation.overall).toBe(true);
 });
 
-test("widening the scope after project owners was checked hides and clears it, and logs the clearing", async ({
+test("widening the scope after project owners was checked disables and clears it, and logs the clearing", async ({
   page,
   request,
 }) => {
@@ -171,7 +171,8 @@ test("widening the scope after project owners was checked hides and clears it, a
 
   await form.setProjects(["Atlas", "Beacon"]);
   await form.openSection("Actions");
-  await expect(form.projectOwners).toHaveCount(0);
+  await expect(form.projectOwners).toBeDisabled();
+  await expect(form.projectOwners).not.toBeChecked();
 
   await form.setProjects(["Atlas"]);
   await form.openSection("Actions");
@@ -236,10 +237,11 @@ test("an earlier mistake corrected before completion still passes, and the corre
   await form.setRecipients({ billing: false, owners: true });
   await form.finishAndExpectSaved();
 
-  await page.getByRole("link", { name: "Edit" }).click();
+  await form.openSaved("Atlas monthly");
   await form.setProjects(["Atlas"]); // clears the Beacon owner, so check owners again
   await form.setRecipients({ owners: true });
-  await form.finishAndExpectSaved();
+  await form.save();
+  await expect(page).toHaveURL(/\/billing\/budgets$/);
   await form.declareCompletion();
 
   const evaluation = await storedEvaluation(session.id);
@@ -297,20 +299,22 @@ test("a new session starts from the defaults and leaves earlier session records 
   const second = await newSessionThroughAdmin(request);
   const form = new BudgetForm(page, second.token);
   await form.open();
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
+  await expect(form.nameField).toHaveValue("");
+  await expect(page.getByRole("radio", { name: /Alerts only/ })).not.toBeChecked();
+  await expect(page.getByRole("radio", { name: /Spend cap enforcement/ })).not.toBeChecked();
   await form.openSection("Scope");
   await expect(page.getByRole("button", { name: /^Time range/ })).toContainText("Monthly");
-  await expect(form.projectsDropdown).toHaveText("All projects");
+  await expect(form.projectsDropdown).toContainText("All projects (2)");
   await form.openSection("Amount");
-  await expect(page.getByRole("radio", { name: "Specified amount" })).toBeChecked();
-  await expect(page.getByLabel("Target amount")).toHaveValue("");
+  await expect(page.getByRole("button", { name: /^Budget type/ })).toContainText("Specified amount");
+  await expect(form.targetField).toHaveValue("0");
   await form.openSection("Actions");
   await expect(form.percentFields).toHaveCount(3);
   for (const [i, percent] of ["50", "90", "100"].entries()) {
     await expect(form.percentFields.nth(i)).toHaveValue(percent);
   }
   await expect(form.billingAdmins).toBeChecked();
-  await expect(form.projectOwners).toHaveCount(0);
+  await expect(form.projectOwners).toBeDisabled();
   await expect(form.monitoring).not.toBeChecked();
   await expect(form.checkbox("Connect a Pub/Sub topic to this budget")).not.toBeChecked();
   await form.declareCompletion();

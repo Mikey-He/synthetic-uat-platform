@@ -5,7 +5,7 @@ import type { BudgetConfig } from "@/lib/domain/types";
 import { EVALUATOR_VERSION, evaluate } from "@/lib/evaluator/evaluate";
 import { defaults, fixture } from "@/lib/fixtures";
 
-// Every config starts from defaults-v1.json and changes only what the case describes.
+// Every config starts from the current defaults file and changes only what the case describes.
 const fromDefaults = (): BudgetConfig => structuredClone(defaults.config);
 
 function correct(): BudgetConfig {

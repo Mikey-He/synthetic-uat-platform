@@ -7,7 +7,9 @@ import { fixtureSchema, referenceDefaultsSchema } from "@/lib/domain/schemas";
 // their exact bytes. Client components receive fixture values as props.
 
 const FIXTURE_FILE = path.join(process.cwd(), "lib", "fixtures", "fixture-v1.json");
-const DEFAULTS_FILE = path.join(process.cwd(), "lib", "fixtures", "defaults-v1.json");
+// defaults-v2 follows the reference capture of 2026-09-30. defaults-v1 stays
+// frozen for the sessions that used it.
+const DEFAULTS_FILE = path.join(process.cwd(), "lib", "fixtures", "defaults-v2.json");
 
 const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 

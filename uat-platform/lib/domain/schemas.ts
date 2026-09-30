@@ -8,7 +8,7 @@ const person = z.strictObject({ id: z.string(), name: z.string(), email: z.strin
 
 const configSchemaWith = (percent: z.ZodType<number, unknown>) => z.strictObject({
   name: z.string(),
-  kind: z.literal("alerts_only"),
+  kind: z.enum(["alerts_only", "spend_cap"]).nullable(),
   scope: z.strictObject({
     allProjects: z.boolean(),
     projectIds: z.array(z.string()),

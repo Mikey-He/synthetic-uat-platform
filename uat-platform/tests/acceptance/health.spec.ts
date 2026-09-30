@@ -7,7 +7,7 @@ test("/api/health reports the build and the frozen files", async ({ request }) =
   expect(body).toMatchObject({
     status: "ok",
     fixtureVersion: "fixture-v1",
-    defaultsVersion: "defaults-v1",
+    defaultsVersion: "defaults-v2",
     taskVersion: "task-v1",
     evaluatorVersion: "eval-v1",
   });

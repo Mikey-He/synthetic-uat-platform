@@ -4,12 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { TASK_BAR_HEIGHT } from "@/components/taskbar/TaskBar";
-import { lastMonthSpend } from "@/lib/domain/costs";
 import { updateConfig, validateConfig, type ValidationIssue } from "@/lib/domain/rules";
 import type { BudgetConfig, Fixture } from "@/lib/domain/types";
 import { useLogger } from "@/lib/events/EventLoggerProvider";
 import { settingOfField, settingValue, type Setting } from "@/lib/events/types";
-import { formatMoney } from "@/lib/format";
 import { ActionsSection } from "./ActionsSection";
 import { AmountSection } from "./AmountSection";
 import { CostTrend } from "./CostTrend";
@@ -19,33 +17,33 @@ import {
   initialFormState,
   sectionOf,
   type Change,
+  type FormMode,
   type SectionNumber,
 } from "./formStore";
-import {
-  AMOUNT_TYPE_LABELS,
-  SECTION_NAMES,
-  VALIDATION_MESSAGES,
-  periodLabel,
-  projectsLabel,
-  triggerLabel,
-} from "./labels";
-import { ScopeSection } from "./ScopeSection";
+import { SECTION_NAMES, VALIDATION_MESSAGES } from "./labels";
+import { Chevron, ScopeSection } from "./ScopeSection";
 
 export type CreateFormData = Pick<
   Fixture,
-  "currency" | "today" | "projects" | "folders" | "services" | "labels" | "monthlyCosts"
+  "currency" | "today" | "projects" | "services" | "labels" | "monthlyCosts"
 >;
 
 type Props = {
   token: string;
+  mode: FormMode;
   data: CreateFormData;
   initialConfig: BudgetConfig;
   editingBudgetId: string | null;
-  reopenedBudgetId: string | null; // set when Edit on a saved budget opened the form
+  savedName?: string; // Edit shows the saved budget's name as its heading
 };
+
+// Layout per the reference capture: Create Budget is a numbered stepper with
+// Next, and Finish and Cancel right under the steps; Edit Budget opens every
+// section with Save and Cancel pinned to the bottom of the page.
 
 const DRAFT_DELAY_MS = 500;
 const FOOTER_HEIGHT = 64;
+const SECTIONS: SectionNumber[] = [1, 2, 3, 4];
 const SECTION_KEYS = { 1: "define", 2: "scope", 3: "amount", 4: "actions" } as const;
 
 // How a person came back to a setting. For this long after a section opens, a
@@ -53,16 +51,10 @@ const SECTION_KEYS = { 1: "define", 2: "scope", 3: "amount", 4: "actions" } as c
 type NavCause = "section_header_click" | "next_button" | "validation" | "page_load";
 const CAUSE_WINDOW_MS = 1500;
 
-export function ReferenceCreateForm({
-  token,
-  data,
-  initialConfig,
-  editingBudgetId,
-  reopenedBudgetId,
-}: Props) {
+export function ReferenceCreateForm({ token, mode, data, initialConfig, editingBudgetId, savedName }: Props) {
   const router = useRouter();
   const logger = useLogger();
-  const [store] = useState(() => createFormStore(initialFormState(initialConfig)));
+  const [store] = useState(() => createFormStore(initialFormState(initialConfig, mode)));
   const state = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -136,12 +128,12 @@ export function ReferenceCreateForm({
     if (mounted.current || !logger) return;
     mounted.current = true;
     markCause("page_load");
-    if (reopenedBudgetId) logger.log("budget_reopened", reopenedBudgetId, { budgetId: reopenedBudgetId });
-    logStep(store.get().openSection);
-  }, [logger, logStep, markCause, reopenedBudgetId, store]);
+    if (editingBudgetId) logger.log("budget_reopened", editingBudgetId, { budgetId: editingBudgetId });
+    for (const section of store.get().open) logStep(section);
+  }, [logger, logStep, markCause, editingBudgetId, store]);
 
   // setting_reached and setting_returned: which setting controls are on screen.
-  // The fixed task bar and the Finish bar are not counted as viewport.
+  // The fixed task bar and the pinned Save bar are not counted as viewport.
   useEffect(() => {
     const form = root.current;
     if (!logger || !form) return;
@@ -171,7 +163,7 @@ export function ReferenceCreateForm({
     );
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [logger, store, state.openSection]);
+  }, [logger, store, state.open]);
 
   // Leaving the page takes every setting out of view.
   useEffect(() => {
@@ -206,29 +198,53 @@ export function ReferenceCreateForm({
     draftTimer.current = setTimeout(() => writeDraft(false), DRAFT_DELAY_MS);
   };
 
-  const openSection = (section: SectionNumber, cause: NavCause) => {
+  // Create: one step open at a time. Next marks the step it leaves as done.
+  const openStep = (section: SectionNumber, cause: NavCause) => {
     const current = store.get();
-    if (current.openSection === section) return;
+    if (current.open.length === 1 && current.open[0] === section) return;
+    const visited =
+      cause === "next_button"
+        ? [...new Set([...current.visited, ...current.open])]
+        : current.visited;
     markCause(cause);
-    store.set({ ...current, openSection: section });
+    store.set({ ...current, open: [section], visited });
     logStep(section);
+  };
+
+  // Edit: every section folds on its own.
+  const toggleSection = (section: SectionNumber) => {
+    const current = store.get();
+    const isOpen = current.open.includes(section);
+    store.set({
+      ...current,
+      open: isOpen ? current.open.filter((s) => s !== section) : [...current.open, section].sort(),
+    });
+    if (!isOpen) {
+      markCause("section_header_click");
+      logStep(section);
+    }
   };
 
   // ---- finish ---------------------------------------------------------------
 
+  const saveLabel = mode === "edit" ? "Save" : "Finish";
+
   const showIssues = (issues: ValidationIssue[]) => {
     const shown = issues.map((issue) => ({ field: issue.field, message: VALIDATION_MESSAGES[issue.code] }));
     for (const item of shown) logger?.log("validation_shown", item.field, item);
-    logger?.log("save_failed", "Finish", { reason: "validation", issues: shown });
-    store.set({ ...store.get(), reported: issues });
-    openSection(sectionOf(issues[0].field), "validation");
+    logger?.log("save_failed", saveLabel, { reason: "validation", issues: shown });
+    const first = sectionOf(issues[0].field);
+    const current = store.get();
+    store.set({ ...current, reported: issues, visited: SECTIONS });
+    if (mode === "create") openStep(first, "validation");
+    else if (!current.open.includes(first)) toggleSection(first);
   };
 
   async function finish() {
     const config = store.get().config;
-    logger?.log("save_clicked", "Finish", { draft: config });
+    logger?.log("save_clicked", saveLabel, { draft: config });
     const issues = validateConfig(config);
-    logger?.log("save_attempted", "Finish", {
+    logger?.log("save_attempted", saveLabel, {
       valid: issues.length === 0,
       issues: issues.map((issue) => ({ field: issue.field, message: VALIDATION_MESSAGES[issue.code] })),
     });
@@ -253,7 +269,7 @@ export function ReferenceCreateForm({
       saved.current = true;
       const { budgetId, version } = (await response.json()) as { budgetId: string; version: number };
       logger?.log("save_succeeded", budgetId, { budgetId, version });
-      router.push(`/s/${token}/billing/budgets/${budgetId}`);
+      router.push(listHref); // back to the budgets list, as the console does
       return;
     }
     setSaving(false);
@@ -264,7 +280,7 @@ export function ReferenceCreateForm({
       showIssues(body.issues);
       return;
     }
-    logger?.log("save_failed", "Finish", { reason: "server", status: response?.status ?? null });
+    logger?.log("save_failed", saveLabel, { reason: "server", status: response?.status ?? null });
     setSaveFailed(true);
   }
 
@@ -278,141 +294,193 @@ export function ReferenceCreateForm({
       .filter((issue) => open.some((o) => o.field === issue.field && o.code === issue.code))
       .map((issue) => [issue.field, VALIDATION_MESSAGES[issue.code]]),
   );
+  const sectionHasError = (section: SectionNumber) => [...errors.keys()].some((field) => sectionOf(field) === section);
 
-  const target = config.amount.target;
-  const summaries: Record<SectionNumber, string> = {
-    1: [config.name.trim(), "Alerts only"].filter(Boolean).join(" · "),
-    2: [periodLabel(config.period), projectsLabel(config.scope, data.projects)].filter(Boolean).join(" · "),
-    3: [
-      AMOUNT_TYPE_LABELS[config.amount.type],
-      config.amount.type === "last_period"
-        ? formatMoney(lastMonthSpend(data, config.scope), data.currency)
-        : target !== undefined
-          ? formatMoney(target, data.currency)
-          : "",
-    ]
-      .filter(Boolean)
-      .join(" · "),
-    4: config.thresholds
-      .map((t) => `${Number.isFinite(t.percent) ? t.percent : "—"}% ${triggerLabel(t.trigger)}`)
-      .join(", "),
+  const body: Record<SectionNumber, ReactNode> = {
+    1: <DefineSection config={config} errors={errors} change={change} />,
+    2: <ScopeSection config={config} data={data} change={change} />,
+    3: <AmountSection config={config} targetText={state.targetText} data={data} errors={errors} change={change} />,
+    4: (
+      <ActionsSection
+        token={token}
+        config={config}
+        percentTexts={state.percentTexts}
+        data={data}
+        errors={errors}
+        change={change}
+      />
+    ),
   };
 
-  const section = (number: SectionNumber, body: ReactNode) => (
-    <FormSection
-      number={number}
-      summary={summaries[number]}
-      open={state.openSection === number}
-      onOpen={() => openSection(number, "section_header_click")}
-      onNext={number < 4 ? () => openSection((number + 1) as SectionNumber, "next_button") : undefined}
-    >
-      {body}
-    </FormSection>
+  const saveButton = (
+    <button type="button" className="btn-primary" disabled={saving} onClick={finish}>
+      {saveLabel}
+    </button>
   );
+  const cancelButton = (
+    <button
+      type="button"
+      className="h-9 rounded px-4 font-medium text-primary hover:bg-selected"
+      onClick={() => router.push(listHref)}
+    >
+      Cancel
+    </button>
+  );
+  // TODO: save-failure wording is not in the docs or the capture. Confirm.
+  const saveError = saveFailed && <p className="text-error">The budget could not be saved. Try again.</p>;
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4">
         <Link
           href={listHref}
           aria-label="Back"
-          className="-ml-2 flex size-9 items-center justify-center rounded-full text-muted hover:bg-surface"
+          className="-ml-2 flex size-9 items-center justify-center rounded-full text-primary hover:bg-selected"
         >
           <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
             <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z" />
           </svg>
         </Link>
-        <h1 className="page-title">Create budget</h1>
+        <h1 className="page-title">{mode === "edit" ? "Edit Budget" : "Create Budget"}</h1>
       </div>
 
-      <div className="mt-4 flex items-start gap-8">
-        <div ref={root} className="w-[60%] min-w-0 border-t border-line">
-          {section(1, <DefineSection config={config} errors={errors} change={change} />)}
-          {section(2, <ScopeSection config={config} data={data} errors={errors} change={change} />)}
-          {section(
-            3,
-            <AmountSection
-              config={config}
-              targetText={state.targetText}
-              data={data}
-              errors={errors}
-              change={change}
-            />,
-          )}
-          {section(
-            4,
-            <ActionsSection
-              token={token}
-              config={config}
-              percentTexts={state.percentTexts}
-              data={data}
-              errors={errors}
-              change={change}
-            />,
+      <div className="mt-6 flex items-start gap-10">
+        <div ref={root} className="w-[600px] shrink-0">
+          {mode === "create" ? (
+            <>
+              {SECTIONS.map((section) => (
+                <Step
+                  key={section}
+                  number={section}
+                  status={
+                    sectionHasError(section)
+                      ? "error"
+                      : state.open.includes(section)
+                        ? "active"
+                        : state.visited.includes(section)
+                          ? "done"
+                          : "idle"
+                  }
+                  open={state.open.includes(section)}
+                  last={section === 4}
+                  onOpen={() => openStep(section, "section_header_click")}
+                  onNext={section < 4 ? () => openStep((section + 1) as SectionNumber, "next_button") : undefined}
+                >
+                  {body[section]}
+                </Step>
+              ))}
+              <div className="mt-6 flex items-center gap-2">
+                {saveButton}
+                {cancelButton}
+                {saveError}
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-[24px] leading-8">{savedName}</h2>
+              {SECTIONS.map((section) => (
+                <EditSection
+                  key={section}
+                  name={SECTION_NAMES[section]}
+                  open={state.open.includes(section)}
+                  onToggle={() => toggleSection(section)}
+                >
+                  {body[section]}
+                </EditSection>
+              ))}
+            </>
           )}
         </div>
-        {/* TODO: where the chart sits at 1440 x 900 with section 4 open is provisional until the capture. */}
-        <aside className="min-w-0 flex-1 rounded-lg border border-line px-5 py-4">
-          <CostTrend config={config} data={data} />
+        {/* TODO: where the chart sits at 1440 x 900 with Actions open is provisional until the capture. */}
+        <aside className="min-w-0 flex-1 rounded-lg border border-line">
+          <CostTrend token={token} config={config} data={data} />
         </aside>
       </div>
 
-      {/* TODO: Finish and Cancel always visible at the page bottom is provisional until the
-          capture confirms it. The prototype wireframe draws Finish inside section 4. */}
-      <div className="sticky bottom-0 z-20 -mx-8 mt-8 flex items-center gap-3 border-t border-line bg-white px-8 py-3">
-        <button type="button" className="btn-primary" disabled={saving} onClick={finish}>
-          Finish
-        </button>
-        <button type="button" className="btn-secondary" onClick={() => router.push(listHref)}>
-          Cancel
-        </button>
-        {/* TODO: save-failure wording is not written in the docs. Confirm. */}
-        {saveFailed && <p className="text-error">The budget could not be saved. Try again.</p>}
-      </div>
+      {mode === "edit" && (
+        <div className="sticky bottom-0 z-20 -mx-8 mt-8 flex items-center gap-2 border-t border-line bg-white px-8 py-3">
+          {saveButton}
+          {cancelButton}
+          {saveError}
+        </div>
+      )}
     </>
   );
 }
 
-type FormSectionProps = {
+type StepStatus = "active" | "done" | "error" | "idle";
+
+function StepIcon({ number, status }: { number: SectionNumber; status: StepStatus }) {
+  const base = "flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-medium text-white";
+  if (status === "error")
+    return (
+      <span className={`${base} bg-error`} aria-hidden="true">
+        !
+      </span>
+    );
+  if (status === "done")
+    return (
+      <span className={`${base} bg-primary`} aria-hidden="true">
+        <svg viewBox="0 0 24 24" className="size-4">
+          <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+        </svg>
+      </span>
+    );
+  return (
+    <span className={`${base} ${status === "active" ? "bg-primary" : "bg-muted/60"}`} aria-hidden="true">
+      {number}
+    </span>
+  );
+}
+
+type StepProps = {
   number: SectionNumber;
-  summary: string;
+  status: StepStatus;
   open: boolean;
+  last: boolean;
   onOpen: () => void;
   onNext?: () => void;
   children: ReactNode;
 };
 
-function FormSection({ number, summary, open, onOpen, onNext, children }: FormSectionProps) {
+function Step({ number, status, open, last, onOpen, onNext, children }: StepProps) {
   return (
-    <section className="border-b border-line">
+    <section>
+      <button type="button" onClick={onOpen} aria-expanded={open} className="flex items-center gap-4 py-1 text-left">
+        <StepIcon number={number} status={status} />
+        <span className="text-[22px] leading-9">{SECTION_NAMES[number]}</span>
+      </button>
+      <div className={`ml-3 pl-7 ${last ? "" : "border-l border-line"} ${open ? "pb-6 pt-3" : "h-5"}`}>
+        {open && (
+          <>
+            {children}
+            {onNext && (
+              <button type="button" className="btn-secondary mt-6" onClick={onNext}>
+                Next
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+type EditSectionProps = { name: string; open: boolean; onToggle: () => void; children: ReactNode };
+
+function EditSection({ name, open, onToggle, children }: EditSectionProps) {
+  return (
+    <section className="border-t border-line py-4">
       <button
         type="button"
-        onClick={onOpen}
+        onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-start gap-3 py-4 text-left"
+        className="flex w-full items-center justify-between text-left"
       >
-        <span
-          className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[12px] font-medium ${
-            open ? "bg-primary text-white" : "border border-muted text-muted"
-          }`}
-        >
-          {number}
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[16px] font-medium leading-7">{SECTION_NAMES[number]}</span>
-          {!open && summary && <span className="block truncate text-muted">{summary}</span>}
-        </span>
+        <span className="text-[22px] leading-9">{name}</span>
+        <Chevron up={open} />
       </button>
-      {open && (
-        <div className="pb-6 pl-9">
-          {children}
-          {onNext && (
-            <button type="button" className="btn-primary mt-6" onClick={onNext}>
-              Next
-            </button>
-          )}
-        </div>
-      )}
+      {open && <div className="pt-3">{children}</div>}
     </section>
   );
 }

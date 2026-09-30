@@ -1,31 +1,69 @@
 "use client";
 
 import { useId } from "react";
-import type { BudgetConfig } from "@/lib/domain/types";
-import { FieldError } from "./fields";
+import { HelpPopover } from "@/components/console/HelpPopover";
+import type { BudgetConfig, BudgetKind } from "@/lib/domain/types";
+import { FieldError, OutlinedInput, PreviewTag } from "./fields";
 import type { Change } from "./formStore";
 
 type Props = { config: BudgetConfig; errors: Map<string, string>; change: Change };
 
 export function DefineSection({ config, errors, change }: Props) {
   const nameId = useId();
+  const group = useId();
   const error = errors.get("name");
+
+  const radio = (kind: BudgetKind, label: string) => (
+    <label className="flex cursor-pointer items-center gap-3">
+      <input
+        type="radio"
+        name={group}
+        className="size-4"
+        checked={config.kind === kind}
+        onChange={() => change([["kind", kind]])}
+      />
+      {label}
+    </label>
+  );
+
   return (
     <>
-      <div data-setting="name">
-        <label htmlFor={nameId} className="block font-medium">
-          Name
-        </label>
-        <input
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          {radio("alerts_only", "Alerts only (available to all services)")}
+          <HelpPopover>
+            <span className="block">
+              Budget alerts track your actual spend relative to your planned budget. Unlike spend
+              caps, budget alerts don&apos;t pause your services.
+            </span>
+            <span className="mt-2 block">
+              Cost recording typically takes up to 24 hours. Consider setting a slightly lower
+              budget amount to compensate for this reporting delay.
+            </span>
+          </HelpPopover>
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            {radio("spend_cap", "Spend cap enforcement (available for limited services)")}
+            <PreviewTag />
+          </div>
+          <p className="ml-7 text-[12px] leading-4 text-muted">
+            Enforced spend caps will pause your usage, including commitments such as CUDs and
+            provisioned throughput, on specified services until lifted.
+          </p>
+        </div>
+      </div>
+      <div data-setting="name" className="mt-6">
+        <OutlinedInput
           id={nameId}
-          type="text"
+          label="Name *"
           value={config.name}
-          onChange={(event) => change([["name", event.target.value]])}
-          className={`field mt-1.5 w-96 ${error ? "border-error" : ""}`}
+          onChange={(value) => change([["name", value]])}
+          invalid={Boolean(error)}
+          floating
         />
         <FieldError message={error} />
       </div>
-      <p className="mt-5">Budget kind · Alerts only</p>
     </>
   );
 }

@@ -23,27 +23,29 @@ test("one full version A session records every version A event type in sequence"
   await page.setViewportSize({ width: 1440, height: 900 });
 
   // step_entered, setting_reached and field_changed through the four sections
-  await page.getByRole("link", { name: "Budgets & alerts" }).click();
-  await page.getByRole("link", { name: "Create budget" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("Atlas monthly");
+  await page.getByRole("link", { name: /^Budgets & caps/ }).click();
+  await page.getByRole("link", { name: "Create new" }).click();
+  await page.getByRole("textbox", { name: "Name *" }).fill("Atlas monthly");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: /^Projects/ }).click();
-  await page.getByRole("checkbox", { name: "Select all" }).uncheck();
-  await page.getByRole("checkbox", { name: "Atlas", exact: true }).check();
-  await page.keyboard.press("Escape");
+  await page.getByRole("checkbox", { name: /^Atlas/ }).check();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByLabel("Target amount").fill("1000");
+  await page.getByRole("textbox", { name: "Target amount *" }).fill("1000");
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByRole("textbox", { name: "Percent of budget" }).first().fill("80");
+  await page.getByRole("textbox", { name: /^Percent of budget/ }).first().fill("80");
   await page.getByRole("checkbox", { name: "Email alerts to billing admins and users" }).uncheck();
   await page.getByRole("checkbox", { name: /Email alerts to project owners/ }).check();
 
   // setting_returned by reopening Scope, option_cleared_by_scope by adding Beacon
-  await page.getByRole("button", { name: /Scope/ }).click();
-  await page.getByRole("button", { name: /^Projects/ }).click();
-  await page.getByRole("checkbox", { name: "Beacon", exact: true }).check();
-  await page.getByRole("checkbox", { name: "Beacon", exact: true }).uncheck();
-  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Scope", exact: true }).click();
+  const projects = page.getByRole("button", { name: /^Projects/ });
+  await projects.click();
+  await page.getByRole("checkbox", { name: /^Beacon/ }).check();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
+  await projects.click();
+  await page.getByRole("checkbox", { name: /^Beacon/ }).uncheck();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
 
   // scroll
   await page.mouse.wheel(0, 300);
@@ -55,13 +57,14 @@ test("one full version A session records every version A event type in sequence"
   await expect(page.getByText("Select at least one way to send alerts.")).toBeVisible();
 
   // save_succeeded once fixed
+  await page.getByRole("button", { name: "Actions", exact: true }).click();
   await page.getByRole("checkbox", { name: /Email alerts to project owners/ }).check();
   await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await expect(page).toHaveURL(/\/billing\/budgets\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(/\/billing\/budgets$/);
 
   // budget_reopened
-  await page.getByRole("link", { name: "Edit" }).click();
-  await expect(page.getByRole("heading", { name: "Create budget" })).toBeVisible();
+  await page.getByRole("link", { name: "Atlas monthly", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit Budget" })).toBeVisible();
 
   // completion_declared and session_ended
   await page.getByRole("button", { name: "I'm finished" }).click();

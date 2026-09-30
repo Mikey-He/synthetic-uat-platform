@@ -8,8 +8,10 @@ import type { BudgetConfig } from "./types";
 export const coversOneProject = (c: BudgetConfig) =>
   !c.scope.allProjects && c.scope.projectIds.length === 1;
 
-// The project owners option is offered only when the budget covers exactly one project.
-export const projectOwnersOffered = coversOneProject;
+// The project owners option is always shown, but it works only when the budget
+// covers exactly one project ("limited to budgets configured to monitor a
+// single project" in the reference capture).
+export const projectOwnersAvailable = coversOneProject;
 
 // Removing every threshold rule disables the email settings.
 export const emailOptionsEnabled = (c: BudgetConfig) => c.thresholds.length > 0;
@@ -38,8 +40,8 @@ export function updateConfig(
   }
 
   const cleared: ClearedOption[] = [];
-  // Until the capture shows otherwise, a checked project owners option is
-  // hidden and cleared when the scope no longer covers exactly one project.
+  // A checked project owners option is cleared, and turns unavailable, when the
+  // scope no longer covers exactly one project.
   if (next.recipients.projectOwners && !coversOneProject(next)) {
     next = setPath(next, "recipients.projectOwners", false);
     cleared.push({ option: "recipients.projectOwners", value: true });
@@ -55,7 +57,6 @@ export function parseNumber(text: string): number | undefined {
 
 export type ValidationCode =
   | "name_required"
-  | "project_required"
   | "amount_invalid"
   | "percent_invalid"
   | "recipient_required";
@@ -66,12 +67,11 @@ const isPositive = (n: number | undefined) => typeof n === "number" && Number.is
 const isPercent = (n: number) => Number.isFinite(n) && n >= 1 && n <= 1000;
 
 // Product validation only, in page order. It never rejects a configuration for
-// differing from the task answer.
+// differing from the task answer. No project checked means every project, as in
+// the reference capture, so an empty project list is not an error.
 export function validateConfig(c: BudgetConfig): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (c.name.trim() === "") issues.push({ field: "name", code: "name_required" });
-  if (!c.scope.allProjects && c.scope.projectIds.length === 0)
-    issues.push({ field: "scope.projectIds", code: "project_required" });
   if (c.amount.type === "specified" && !isPositive(c.amount.target))
     issues.push({ field: "amount.target", code: "amount_invalid" });
   c.thresholds.forEach((t, i) => {

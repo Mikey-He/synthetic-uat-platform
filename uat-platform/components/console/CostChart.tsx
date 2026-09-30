@@ -10,6 +10,7 @@ type Props = {
   width?: number;
   height?: number;
   shortMonths?: boolean; // "Apr" instead of "Apr 2026", for narrow charts
+  budgetLine?: number; // a dashed line at the budget amount, as in the cost trend of the capture
 };
 
 // Categorical slots, validated on white. Color follows the project, never its
@@ -39,12 +40,13 @@ export function CostChart({
   width = 640,
   height = 220,
   shortMonths = false,
+  budgetLine,
 }: Props) {
   const pad = { top: 12, right: 12, bottom: 28, left: 64 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const totals = months.map((_, i) => series.reduce((sum, s) => sum + s.values[i], 0));
-  const axis = niceAxis(Math.max(0, ...totals));
+  const axis = niceAxis(Math.max(0, budgetLine ?? 0, ...totals));
   const ticks = Array.from({ length: Math.round(axis.max / axis.step) + 1 }, (_, i) => i * axis.step);
   const slot = plotWidth / months.length;
   const barWidth = Math.min(32, slot * 0.5);
@@ -82,6 +84,30 @@ export function CostChart({
             </text>
           </g>
         ))}
+        {budgetLine !== undefined && budgetLine > 0 && (
+          <g>
+            <line
+              x1={pad.left}
+              x2={width - pad.right}
+              y1={y(budgetLine)}
+              y2={y(budgetLine)}
+              stroke="var(--color-error)"
+              strokeWidth={1.5}
+              strokeDasharray="6 4"
+            />
+            <rect x={pad.left + 4} y={y(budgetLine) - 9} width={56} height={18} rx={3} fill="var(--color-error)" />
+            <text
+              x={pad.left + 32}
+              y={y(budgetLine)}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={11}
+              fill="#ffffff"
+            >
+              {formatMoney(budgetLine, currency, 0)}
+            </text>
+          </g>
+        )}
         {months.map((month, i) => {
           const x = pad.left + slot * i + (slot - barWidth) / 2;
           const drawn = series.filter((s) => s.values[i] > 0);

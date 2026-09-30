@@ -61,7 +61,7 @@ uat-platform/
     variant-b/                GuidedSetup and its screens
     taskbar/                  task text and I'm finished button
   lib/
-    fixtures/                 fixture-v1.json, defaults-v1.json
+    fixtures/                 fixture-v1.json, defaults-v1.json, defaults-v2.json
     domain/                   budget types, validation, resolveRecipients
     evaluator/                evaluate() and its tests
     events/                   client logger and event type list

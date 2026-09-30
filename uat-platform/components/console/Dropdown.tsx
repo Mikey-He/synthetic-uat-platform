@@ -1,32 +1,20 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 
 // Dropdowns render their options in the page instead of using a native
 // <select>. A native popup is drawn by the browser outside the page, so a
-// screenshot-based agent would never see the options.
+// screenshot-based agent would never see the options. They look like the
+// outlined fields in the reference capture: the label sits on the border.
 
-type DropdownProps = {
-  labelId?: string; // id of the visible field label
-  display: string; // text on the closed control
-  disabled?: boolean;
-  invalid?: boolean;
-  className?: string;
-  children: (close: () => void) => ReactNode;
-};
-
-export function Dropdown({ labelId, display, disabled, invalid, className = "w-72", children }: DropdownProps) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const buttonId = useId();
-
+function useDismiss(open: boolean, root: RefObject<HTMLElement | null>, dismiss: () => void) {
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!root.current?.contains(event.target as Node)) dismiss();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") dismiss();
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -34,20 +22,33 @@ export function Dropdown({ labelId, display, disabled, invalid, className = "w-7
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, root, dismiss]);
+}
 
+type TriggerProps = {
+  label?: string;
+  display: string;
+  open: boolean;
+  disabled?: boolean;
+  invalid?: boolean;
+  onClick: () => void;
+};
+
+function Trigger({ label, display, open, disabled, invalid, onClick }: TriggerProps) {
+  const labelId = useId();
+  const buttonId = useId();
   return (
-    <div ref={root} className={`relative ${className}`}>
+    <>
       <button
         id={buttonId}
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-labelledby={labelId ? `${labelId} ${buttonId}` : undefined}
-        onClick={() => setOpen((value) => !value)}
-        className={`flex h-9 w-full items-center justify-between gap-2 rounded border bg-white px-3 text-left disabled:bg-surface disabled:text-muted ${
-          invalid ? "border-error" : "border-line hover:border-muted"
+        aria-labelledby={label ? `${labelId} ${buttonId}` : undefined}
+        onClick={onClick}
+        className={`flex h-11 w-full items-center justify-between gap-2 rounded border bg-white px-3 text-left disabled:text-muted ${
+          invalid ? "border-error" : open ? "border-primary" : "border-line hover:border-ink"
         }`}
       >
         <span className="truncate">{display}</span>
@@ -55,9 +56,46 @@ export function Dropdown({ labelId, display, disabled, invalid, className = "w-7
           <path d="M7 10l5 5 5-5z" fill="currentColor" />
         </svg>
       </button>
+      {label && (
+        <span
+          id={labelId}
+          className="pointer-events-none absolute -top-2 left-2.5 bg-white px-1 text-[12px] leading-4 text-muted"
+        >
+          {label}
+        </span>
+      )}
+    </>
+  );
+}
+
+type DropdownProps = {
+  label?: string;
+  display: string;
+  disabled?: boolean;
+  invalid?: boolean;
+  className?: string;
+  children: (close: () => void) => ReactNode;
+};
+
+export function Dropdown({ label, display, disabled, invalid, className = "w-72", children }: DropdownProps) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const [close] = useState(() => () => setOpen(false));
+  useDismiss(open, root, close);
+
+  return (
+    <div ref={root} className={`relative ${className}`}>
+      <Trigger
+        label={label}
+        display={display}
+        open={open}
+        disabled={disabled}
+        invalid={invalid}
+        onClick={() => setOpen((value) => !value)}
+      />
       {open && (
         <div className="absolute left-0 top-full z-30 mt-1 w-full rounded border border-line bg-white py-1 shadow-lg">
-          {children(() => setOpen(false))}
+          {children(close)}
         </div>
       )}
     </div>
@@ -67,17 +105,17 @@ export function Dropdown({ labelId, display, disabled, invalid, className = "w-7
 type Option<T extends string> = { value: T; label: string };
 
 type SelectProps<T extends string> = {
-  labelId?: string;
+  label?: string;
   value: T;
   options: readonly Option<T>[];
   onChange: (value: T) => void;
   className?: string;
 };
 
-export function Select<T extends string>({ labelId, value, options, onChange, className }: SelectProps<T>) {
+export function Select<T extends string>({ label, value, options, onChange, className }: SelectProps<T>) {
   const current = options.find((option) => option.value === value);
   return (
-    <Dropdown labelId={labelId} display={current?.label ?? ""} className={className}>
+    <Dropdown label={label} display={current?.label ?? ""} className={className}>
       {(close) => (
         <div role="listbox">
           {options.map((option) => (
@@ -90,7 +128,7 @@ export function Select<T extends string>({ labelId, value, options, onChange, cl
                 onChange(option.value);
                 close();
               }}
-              className={`block w-full px-3 py-2 text-left hover:bg-surface ${
+              className={`block w-full px-4 py-2.5 text-left hover:bg-surface ${
                 option.value === value ? "bg-selected text-selected-ink" : ""
               }`}
             >
@@ -103,58 +141,97 @@ export function Select<T extends string>({ labelId, value, options, onChange, cl
   );
 }
 
-type MultiSelectProps = {
-  labelId?: string;
+type ChecklistOption = { value: string; label: string; detail?: string };
+
+type ChecklistProps = {
+  label: string;
   display: string;
-  options: Option<string>[];
+  options: ChecklistOption[];
   selected: string[];
-  onToggle: (value: string) => void;
-  selectAll?: { checked: boolean; onToggle: () => void };
-  emptyText?: string;
-  invalid?: boolean;
+  onApply: (next: string[]) => void;
   className?: string;
 };
 
-export function MultiSelect({
-  labelId,
-  display,
-  options,
-  selected,
-  onToggle,
-  selectAll,
-  emptyText,
-  invalid,
-  className,
-}: MultiSelectProps) {
+// A checklist that applies on OK, like the capture's Projects picker: Select
+// all, one box per option, then Deselect all, Cancel and OK. Closing it any
+// other way discards the unapplied ticks.
+export function ChecklistDropdown({ label, display, options, selected, onApply, className = "w-full" }: ChecklistProps) {
+  const [staged, setStaged] = useState<string[] | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const [discard] = useState(() => () => setStaged(null));
+  const open = staged !== null;
+  useDismiss(open, root, discard);
+
+  const order = options.map((option) => option.value);
+  const toggle = (value: string) =>
+    setStaged((current) => {
+      const next = current ?? [];
+      const ticked = next.includes(value) ? next.filter((v) => v !== value) : [...next, value];
+      return order.filter((v) => ticked.includes(v));
+    });
+  const allTicked = open && staged.length === options.length && options.length > 0;
+
   return (
-    <Dropdown labelId={labelId} display={display} invalid={invalid} className={className}>
-      {() =>
-        options.length === 0 ? (
-          <p className="px-3 py-2 text-muted">{emptyText}</p>
-        ) : (
+    <div ref={root} className={`relative ${className}`}>
+      <Trigger
+        label={label}
+        display={display}
+        open={open}
+        onClick={() => setStaged(open ? null : [...selected])}
+      />
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-30 mt-1 rounded border border-line bg-white shadow-lg">
           <div role="listbox" aria-multiselectable="true">
-            {selectAll && (
-              <label className="flex cursor-pointer items-center gap-3 border-b border-line px-3 py-2 hover:bg-surface">
-                <input type="checkbox" checked={selectAll.checked} onChange={selectAll.onToggle} />
-                Select all
-              </label>
-            )}
+            <label className="flex cursor-pointer items-center gap-3 border-b border-line px-4 py-2.5 hover:bg-surface">
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={allTicked}
+                onChange={() => setStaged(allTicked ? [] : [...order])}
+              />
+              Select all
+            </label>
             {options.map((option) => (
-              <label
-                key={option.value}
-                className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface"
-              >
+              <label key={option.value} className="flex cursor-pointer items-start gap-3 px-4 py-2 hover:bg-surface">
                 <input
                   type="checkbox"
-                  checked={selected.includes(option.value)}
-                  onChange={() => onToggle(option.value)}
+                  className="mt-0.5 size-4"
+                  checked={staged.includes(option.value)}
+                  onChange={() => toggle(option.value)}
                 />
-                {option.label}
+                <span>
+                  <span className="block">{option.label}</span>
+                  {option.detail && <span className="block text-muted">{option.detail}</span>}
+                </span>
               </label>
             ))}
           </div>
-        )
-      }
-    </Dropdown>
+          <div className="flex items-center gap-2 border-t border-line px-2 py-2">
+            <button
+              type="button"
+              className="rounded px-3 py-1.5 font-medium text-primary hover:bg-selected disabled:text-muted disabled:hover:bg-transparent"
+              disabled={staged.length === 0}
+              onClick={() => setStaged([])}
+            >
+              Deselect all
+            </button>
+            <span className="flex-1" />
+            <button type="button" className="rounded px-3 py-1.5 font-medium text-primary hover:bg-selected" onClick={discard}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="rounded px-3 py-1.5 font-medium text-primary hover:bg-selected"
+              onClick={() => {
+                onApply(staged);
+                setStaged(null);
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

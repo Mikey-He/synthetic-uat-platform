@@ -15,19 +15,19 @@ export default async function CreateBudgetPage({ params, searchParams }: Props) 
   const session = await getParticipantSession(token);
   if (!session) notFound();
 
-  // Edit on a saved budget opens this page with ?edit=<id>. A draft already
-  // editing that budget wins, so changes survive a reload.
+  // A budget name on the list opens this page with ?edit=<id> (Edit Budget).
+  // A draft already editing that budget wins, so changes survive a reload.
+  // Create Budget resumes only a draft of a new budget.
   const draft = await getDraft(session.id);
   let start: Draft;
+  let savedName: string | undefined;
   if (typeof edit === "string") {
-    if (draft?.editingBudgetId === edit) start = draft;
-    else {
-      const budget = await getBudget(session.id, edit);
-      if (!budget) notFound();
-      start = { config: budget.config, editingBudgetId: budget.id };
-    }
+    const budget = await getBudget(session.id, edit);
+    if (!budget) notFound();
+    savedName = budget.config.name;
+    start = draft?.editingBudgetId === edit ? draft : { config: budget.config, editingBudgetId: budget.id };
   } else {
-    start = draft ?? { config: defaults.config, editingBudgetId: null };
+    start = draft && draft.editingBudgetId === null ? draft : { config: defaults.config, editingBudgetId: null };
   }
 
   const data = {
@@ -47,10 +47,11 @@ export default async function CreateBudgetPage({ params, searchParams }: Props) 
         <ReferenceCreateForm
           key={crypto.randomUUID()} // a fresh form, loaded from the server, on every visit
           token={token}
+          mode={savedName === undefined ? "create" : "edit"}
+          savedName={savedName}
           data={data}
           initialConfig={start.config}
           editingBudgetId={start.editingBudgetId}
-          reopenedBudgetId={typeof edit === "string" ? edit : null}
         />
       );
     case "B":

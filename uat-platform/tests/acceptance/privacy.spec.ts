@@ -41,14 +41,15 @@ test("participant pages and participant API responses never show scoring or the 
     collectKeys(await response.json().catch(() => undefined), keys);
   });
 
-  // Save a budget, so the saved view and the list have something to show.
+  // Save a budget, so Edit Budget and the list have something to show.
   await page.goto(`${base}/billing/budgets/create`);
-  await page.getByLabel("Name", { exact: true }).fill("Atlas monthly");
-  await page.getByRole("button", { name: /Amount/ }).click();
-  await page.getByLabel("Target amount").fill("1000");
+  await page.getByRole("textbox", { name: "Name *" }).fill("Atlas monthly");
+  await page.getByRole("button", { name: "Amount", exact: true }).click();
+  await page.getByRole("textbox", { name: "Target amount *" }).fill("1000");
   await page.getByRole("button", { name: "Finish", exact: true }).click();
-  await expect(page).toHaveURL(/\/billing\/budgets\/[0-9a-f-]{36}$/);
-  const budgetPath = new URL(page.url()).pathname.slice(base.length);
+  await expect(page).toHaveURL(/\/billing\/budgets$/);
+  const editHref = await page.getByRole("link", { name: "Atlas monthly", exact: true }).getAttribute("href");
+  const budgetPath = editHref!.slice(base.length);
 
   const pages = [
     "",

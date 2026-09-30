@@ -2,13 +2,17 @@ import type { ValidationIssue } from "@/lib/domain/rules";
 import type { BudgetConfig } from "@/lib/domain/types";
 
 export type SectionNumber = 1 | 2 | 3 | 4;
+export type FormMode = "create" | "edit";
 
 export type FormState = {
   config: BudgetConfig;
   // Raw text of the number fields, so "1000." or "abc" stays on screen as typed.
   targetText: string;
   percentTexts: string[];
-  openSection: SectionNumber;
+  // Create shows one step at a time; Edit opens every section at once.
+  open: SectionNumber[];
+  // Steps passed with Next, or checked by Finish. They show a check mark.
+  visited: SectionNumber[];
   // Issues reported by the last Finish. One stays visible until it is fixed.
   reported: ValidationIssue[];
 };
@@ -20,12 +24,13 @@ export type Change = (updates: Array<[path: string, value: unknown]>, patch?: Te
 const numberText = (value: number | undefined) =>
   value === undefined || Number.isNaN(value) ? "" : String(value);
 
-export function initialFormState(config: BudgetConfig): FormState {
+export function initialFormState(config: BudgetConfig, mode: FormMode): FormState {
   return {
     config,
     targetText: numberText(config.amount.target),
     percentTexts: config.thresholds.map((threshold) => numberText(threshold.percent)),
-    openSection: 1,
+    open: mode === "edit" ? [1, 2, 3, 4] : [1],
+    visited: [],
     reported: [],
   };
 }

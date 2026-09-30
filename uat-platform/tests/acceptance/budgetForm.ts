@@ -16,52 +16,69 @@ export class BudgetForm {
 
   async open() {
     await this.page.goto(`/s/${this.token}/billing/budgets`);
-    await this.page.getByRole("link", { name: "Create budget" }).click();
-    await expect(this.page.getByRole("heading", { name: "Create budget" })).toBeVisible();
+    await this.page.getByRole("link", { name: "Create new" }).click();
+    await expect(this.page.getByRole("heading", { name: "Create Budget" })).toBeVisible();
   }
 
+  // Edit Budget, from the budget's name on the list.
+  async openSaved(name: string) {
+    await this.page.goto(`/s/${this.token}/billing/budgets`);
+    await this.page.getByRole("link", { name, exact: true }).click();
+    await expect(this.page.getByRole("heading", { name: "Edit Budget" })).toBeVisible();
+  }
+
+  sectionHeader(section: Section) {
+    return this.page.getByRole("button", { name: section, exact: true });
+  }
+
+  // Opens a step (Create) or unfolds a section (Edit), and leaves an open one alone.
   async openSection(section: Section) {
-    await this.page.getByRole("button", { name: new RegExp(section) }).click();
+    const header = this.sectionHeader(section);
+    if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
+  }
+
+  get nameField() {
+    return this.page.getByRole("textbox", { name: "Name *" });
   }
 
   async setName(name: string) {
     await this.openSection("Define");
-    await this.page.getByLabel("Name", { exact: true }).fill(name);
+    await this.nameField.fill(name);
   }
 
   get projectsDropdown() {
     return this.page.getByRole("button", { name: /^Projects/ });
   }
 
+  // "all" leaves every box unticked, which the console reads as All projects.
   async setProjects(choice: "all" | Array<"Atlas" | "Beacon">) {
     await this.openSection("Scope");
     await this.projectsDropdown.click();
-    const selectAll = this.page.getByRole("checkbox", { name: "Select all" });
-    if (choice === "all") {
-      if (!(await selectAll.isChecked())) await selectAll.check();
-    } else {
-      if (await selectAll.isChecked()) await selectAll.uncheck();
-      for (const name of ["Atlas", "Beacon"] as const) {
-        const box = this.page.getByRole("checkbox", { name, exact: true });
-        if ((await box.isChecked()) !== choice.includes(name)) await box.click();
-      }
+    const wanted = choice === "all" ? [] : choice;
+    for (const name of ["Atlas", "Beacon"] as const) {
+      const box = this.page.getByRole("checkbox", { name: new RegExp(`^${name}`) });
+      if ((await box.isChecked()) !== wanted.includes(name)) await box.click();
     }
-    await this.page.keyboard.press("Escape");
+    await this.page.getByRole("button", { name: "OK", exact: true }).click();
+  }
+
+  get targetField() {
+    return this.page.getByRole("textbox", { name: "Target amount *" });
   }
 
   async setTarget(text: string) {
     await this.openSection("Amount");
-    await this.page.getByLabel("Target amount").fill(text);
+    await this.targetField.fill(text);
   }
 
   get percentFields() {
-    return this.page.getByRole("textbox", { name: "Percent of budget" });
+    return this.page.getByRole("textbox", { name: /^Percent of budget/ });
   }
 
-  // Replaces every threshold rule, through Delete and Add threshold.
+  // Replaces every threshold rule, through Delete item and Add threshold.
   async setThresholds(rules: Rule[]) {
     await this.openSection("Actions");
-    const deletes = this.page.getByRole("button", { name: "Delete" });
+    const deletes = this.page.getByRole("button", { name: "Delete item" });
     while ((await deletes.count()) > 0) await deletes.first().click();
     for (const rule of rules) await this.addThreshold(rule);
   }
@@ -111,9 +128,14 @@ export class BudgetForm {
     await this.page.getByRole("button", { name: "Finish", exact: true }).click();
   }
 
+  async save() {
+    await this.page.getByRole("button", { name: "Save", exact: true }).click();
+  }
+
+  // A saved budget lands back on the list, as in the console.
   async finishAndExpectSaved() {
     await this.finish();
-    await expect(this.page).toHaveURL(/\/billing\/budgets\/[0-9a-f-]{36}$/);
+    await expect(this.page).toHaveURL(/\/billing\/budgets$/);
   }
 
   async declareCompletion() {

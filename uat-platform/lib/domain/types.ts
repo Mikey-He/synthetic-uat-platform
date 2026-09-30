@@ -2,6 +2,8 @@
 // BudgetConfig follows docs/build-plan.md (Data model).
 
 export type Period = "monthly" | "quarterly" | "yearly" | "custom";
+// The two Define choices in the reference capture. Neither is chosen at the start.
+export type BudgetKind = "alerts_only" | "spend_cap";
 export type AmountType = "specified" | "last_period";
 export type Trigger = "actual" | "forecasted";
 
@@ -9,9 +11,9 @@ export type Threshold = { percent: number; trigger: Trigger };
 
 export type BudgetConfig = {
   name: string;
-  kind: "alerts_only";
+  kind: BudgetKind | null; // null until one of the Define options is chosen
   scope: {
-    allProjects: boolean; // true = entire account
+    allProjects: boolean; // true = entire account, shown as no project checked
     projectIds: string[]; // explicit selection
     // Not in build-plan.md yet. Unscored, but version A lets people change
     // these filters and the study records it. Labels are stored as "key:value".
