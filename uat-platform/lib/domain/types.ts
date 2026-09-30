@@ -31,6 +31,8 @@ export type BudgetConfig = {
     billingAdminsAndUsers: boolean;
     projectOwners: boolean; // only offered for single-project scope
     monitoring: { linked: boolean; projectId?: string; channelIds: string[] };
+    // Absent while "Connect a Pub/Sub topic" is unchecked. "" means checked
+    // with no topic chosen, which is all the fixture allows.
     pubsubTopic?: string;
   };
 };

@@ -1,11 +1,53 @@
-// Tables come in later steps (docs/build-plan.md, Data model).
-// The connection string is DATABASE_URL, read in prisma.config.ts.
+// Tables follow docs/build-plan.md (Data model). Column names are snake_case
+// as written there. The connection string is DATABASE_URL, read in prisma.config.ts.
+//
+// Step 4 keys drafts, budgets and evaluations by the session token.
+// Step 5 moves them onto the Session table.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  // CommonJS output also loads inside Playwright tests, not only in Next and Vitest.
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+/// One live draft per session.
+model BudgetDraft {
+  token     String   @id
+  draft     Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+}
+
+/// One row per save. Editing a budget writes a new version under the same id.
+model Budget {
+  id          String
+  version     Int
+  token       String
+  config      Json
+  savedAt     DateTime     @default(now()) @map("saved_at") @db.Timestamptz(3)
+  evaluations Evaluation[]
+
+  @@id([id, version])
+  @@index([token])
+}
+
+/// Researcher view only. Never returned to a participant.
+model Evaluation {
+  id                  String   @id @default(cuid())
+  token               String
+  budgetId            String?  @map("budget_id")
+  budgetVersion       Int?     @map("budget_version")
+  budget              Budget?  @relation(fields: [budgetId, budgetVersion], references: [id, version])
+  criteria            Json
+  overallSuccess      Boolean  @map("overall_success")
+  resolvedRecipients  Json     @map("resolved_recipients")
+  recipientMechanisms Json     @map("recipient_mechanisms")
+  evaluatorVersion    String   @map("evaluator_version")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([token])
 }

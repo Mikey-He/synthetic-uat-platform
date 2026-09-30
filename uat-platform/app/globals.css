@@ -21,6 +21,12 @@
   --color-series-2: #eb6834;
 }
 
+/* The browser's own date picker highlights the real today. Participants only
+   ever see fixture dates, so date fields are typed, not picked. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
 body {
   background: #ffffff;
   color: var(--color-ink);
@@ -43,6 +49,10 @@ body {
 
   .page-title {
     @apply text-[22px] leading-7;
+  }
+
+  .field {
+    @apply h-9 rounded border border-line bg-white px-3 hover:border-muted focus:border-primary focus:outline-none;
   }
 
   .data-table {

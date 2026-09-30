@@ -6,7 +6,7 @@ import type { BudgetConfig, Fixture, ReferenceDefaults } from "./types";
 
 const person = z.strictObject({ id: z.string(), name: z.string(), email: z.string() });
 
-export const budgetConfigSchema: z.ZodType<BudgetConfig> = z.strictObject({
+const configSchemaWith = (percent: z.ZodType<number, unknown>) => z.strictObject({
   name: z.string(),
   kind: z.literal("alerts_only"),
   scope: z.strictObject({
@@ -26,9 +26,7 @@ export const budgetConfigSchema: z.ZodType<BudgetConfig> = z.strictObject({
     type: z.enum(["specified", "last_period"]),
     target: z.number().optional(),
   }),
-  thresholds: z.array(
-    z.strictObject({ percent: z.number(), trigger: z.enum(["actual", "forecasted"]) }),
-  ),
+  thresholds: z.array(z.strictObject({ percent, trigger: z.enum(["actual", "forecasted"]) })),
   recipients: z.strictObject({
     billingAdminsAndUsers: z.boolean(),
     projectOwners: z.boolean(),
@@ -39,6 +37,28 @@ export const budgetConfigSchema: z.ZodType<BudgetConfig> = z.strictObject({
     }),
     pubsubTopic: z.string().optional(),
   }),
+});
+
+// A saved budget always holds finite numbers.
+export const budgetConfigSchema: z.ZodType<BudgetConfig> = configSchemaWith(z.number());
+
+// A draft may hold a threshold whose percent text is not a number yet. JSON
+// stores that as null, read back as NaN, which never passes validation.
+export const draftConfigSchema: z.ZodType<BudgetConfig> = configSchemaWith(
+  z
+    .number()
+    .nullable()
+    .transform((value) => value ?? Number.NaN),
+);
+
+export const draftBodySchema = z.strictObject({
+  config: draftConfigSchema,
+  editingBudgetId: z.string().nullable(),
+});
+
+export const saveBodySchema = z.strictObject({
+  config: budgetConfigSchema,
+  editingBudgetId: z.string().nullable(),
 });
 
 export const fixtureSchema: z.ZodType<Fixture> = z.strictObject({

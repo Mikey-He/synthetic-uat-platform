@@ -7,7 +7,6 @@ const ROUTES = [
   "/billing",
   "/billing/budgets",
   "/billing/budgets/create",
-  "/billing/budgets/example",
   "/billing/account",
   "/stub/reports",
   "/stub/notification-channels",

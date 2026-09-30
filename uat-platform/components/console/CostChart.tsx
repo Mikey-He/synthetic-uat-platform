@@ -9,6 +9,7 @@ type Props = {
   currency: string;
   width?: number;
   height?: number;
+  shortMonths?: boolean; // "Apr" instead of "Apr 2026", for narrow charts
 };
 
 // Categorical slots, validated on white. Color follows the project, never its
@@ -30,7 +31,15 @@ function niceAxis(maxValue: number) {
 const GAP = 2; // surface gap between stacked segments
 const RADIUS = 4; // rounded data end, top of the stack only
 
-export function CostChart({ titleId, months, series, currency, width = 640, height = 220 }: Props) {
+export function CostChart({
+  titleId,
+  months,
+  series,
+  currency,
+  width = 640,
+  height = 220,
+  shortMonths = false,
+}: Props) {
   const pad = { top: 12, right: 12, bottom: 28, left: 64 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
@@ -101,7 +110,7 @@ export function CostChart({ titleId, months, series, currency, width = 640, heig
                 fontSize={12}
                 fill="var(--color-muted)"
               >
-                {monthLabel(month)}
+                {shortMonths ? monthLabel(month).split(" ")[0] : monthLabel(month)}
               </text>
             </g>
           );
