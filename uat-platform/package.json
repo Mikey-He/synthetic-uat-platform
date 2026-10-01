@@ -13,6 +13,8 @@
     "check": "npm run lint && npm run typecheck && npm run test",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
+    "open:a": "tsx scripts/open-session.ts A",
+    "open:b": "tsx scripts/open-session.ts B",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "freeze": "tsx scripts/freeze.ts"
   },

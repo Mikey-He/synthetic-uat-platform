@@ -5,9 +5,9 @@ import { Select } from "@/components/console/Dropdown";
 import { lastMonthSpend, type CostData } from "@/lib/domain/costs";
 import type { BudgetConfig, Period } from "@/lib/domain/types";
 import { FieldError, OutlinedInput } from "./fields";
-import type { Change } from "./formStore";
+import type { Change } from "@/components/budget-shared/formStore";
 import { AMOUNT_TYPE_OPTIONS } from "./labels";
-import { setTarget } from "./setters";
+import { setTarget } from "@/components/budget-shared/setters";
 
 type Props = {
   config: BudgetConfig;

@@ -11,10 +11,10 @@ import { ActionsSection } from "./ActionsSection";
 import { AmountSection } from "./AmountSection";
 import { CostTrend } from "./CostTrend";
 import { DefineSection } from "./DefineSection";
-import { initialFormState, sectionOf, type FormMode, type SectionNumber } from "./formStore";
+import { initialFormState, sectionOf, type FormMode, type SectionNumber } from "@/components/budget-shared/formStore";
 import { SECTION_NAMES, VALIDATION_MESSAGES } from "./labels";
 import { Chevron, ScopeSection } from "./ScopeSection";
-import { useBudgetDraft } from "./useBudgetDraft";
+import { useBudgetDraft } from "@/components/budget-shared/useBudgetDraft";
 
 export type CreateFormData = Pick<
   Fixture,

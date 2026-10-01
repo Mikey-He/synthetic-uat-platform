@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { ReferenceCreateForm } from "@/components/budget/ReferenceCreateForm";
-import { GuidedSetup } from "@/components/guided/GuidedSetup";
+import { ReferenceCreateForm } from "@/components/advanced-form/ReferenceCreateForm";
+import { GuidedSetup } from "@/components/guided-setup/GuidedSetup";
 import { getBudget, getDraft, type Draft } from "@/lib/budgets";
 import { defaults, fixture } from "@/lib/fixtures";
 import { getParticipantSession, readVariant } from "@/lib/session";

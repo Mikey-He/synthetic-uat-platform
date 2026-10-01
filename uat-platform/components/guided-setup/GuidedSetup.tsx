@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Select } from "@/components/console/Dropdown";
-import { initialFormState } from "@/components/budget/formStore";
-import { addThreshold, removeThreshold, setPercent, setTarget, setTrigger } from "@/components/budget/setters";
-import { useBudgetDraft } from "@/components/budget/useBudgetDraft";
+import { initialFormState } from "@/components/budget-shared/formStore";
+import { addThreshold, removeThreshold, setPercent, setTarget, setTrigger } from "@/components/budget-shared/setters";
+import { useBudgetDraft } from "@/components/budget-shared/useBudgetDraft";
 import { budgetAmount, lastMonthSpend } from "@/lib/domain/costs";
 import { coversOneProject, emailOptionsEnabled, parseNumber } from "@/lib/domain/rules";
 import type { BudgetConfig, Fixture, Period, Trigger } from "@/lib/domain/types";

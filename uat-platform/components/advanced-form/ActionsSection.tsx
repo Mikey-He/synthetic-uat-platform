@@ -8,9 +8,9 @@ import { budgetAmount, type CostData } from "@/lib/domain/costs";
 import { emailOptionsEnabled, parseNumber, projectOwnersAvailable } from "@/lib/domain/rules";
 import type { BudgetConfig } from "@/lib/domain/types";
 import { Checkbox, FieldError, OutlinedInput } from "./fields";
-import type { Change } from "./formStore";
+import type { Change } from "@/components/budget-shared/formStore";
 import { TRIGGER_OPTIONS } from "./labels";
-import { addThreshold, removeThreshold, setPercent, setTrigger } from "./setters";
+import { addThreshold, removeThreshold, setPercent, setTrigger } from "@/components/budget-shared/setters";
 
 type Props = {
   token: string;

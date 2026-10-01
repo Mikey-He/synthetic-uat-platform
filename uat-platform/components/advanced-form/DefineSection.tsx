@@ -4,7 +4,7 @@ import { useId } from "react";
 import { HelpPopover } from "@/components/console/HelpPopover";
 import type { BudgetConfig, BudgetKind } from "@/lib/domain/types";
 import { FieldError, OutlinedInput, PreviewTag } from "./fields";
-import type { Change } from "./formStore";
+import type { Change } from "@/components/budget-shared/formStore";
 
 type Props = { config: BudgetConfig; errors: Map<string, string>; change: Change };
 

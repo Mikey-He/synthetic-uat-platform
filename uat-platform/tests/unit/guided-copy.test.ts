@@ -7,7 +7,7 @@ import {
   recipientsSummary,
   screenIssues,
   tracksSummary,
-} from "@/components/guided/copy";
+} from "@/components/guided-setup/copy";
 import { updateConfig } from "@/lib/domain/rules";
 import type { BudgetConfig } from "@/lib/domain/types";
 import { defaults, fixture } from "@/lib/fixtures";

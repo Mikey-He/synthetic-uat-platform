@@ -57,8 +57,10 @@ uat-platform/
     api/                      route handlers
   components/
     console/                  console-style layout, stepper, form controls
-    budget/                   Scope, Amount, Actions sections
-    guided/                   GuidedSetup and its screens (not "variant-b": dev chunk names would carry the variant)
+    advanced-form/            version A: ReferenceCreateForm with Define, Scope, Amount, Actions
+    guided-setup/             version B: GuidedSetup and its screens
+    budget-shared/            draft, setters and save shared by both flows
+                              (no "variant-a"/"variant-b" names: dev chunk names would carry the variant)
     taskbar/                  task text and I'm finished button
   lib/
     fixtures/                 fixture-v1.json, defaults-v1.json, defaults-v2.json
@@ -69,14 +71,17 @@ uat-platform/
     schema.prisma
   tests/
     acceptance/               Playwright tests for Part 12 cases
+  scripts/
+    open-session.ts           npm run open:a / open:b, a local test session in the browser
+  launch/                     double-click versions of open:a and open:b (Windows)
   agent-runner/
-    runner.py                 screenshot, model, action loop
-    actions.py                click, type, key, scroll, wait
-    models/                   one adapter per approved model
+    runner/loop.py            screenshot, model, action loop
+    runner/actions.py         click, type, key, scroll, wait
+    runner/model.py           model client (Gemini) and a scripted stand-in
     prompts/                  versioned prompt files
     personas/                 familiarity profiles
-    calibration/              frozen calibration configs
-    runs/                     screenshots and step logs
+    calibrations/             frozen calibration configs
+    runs/                     screenshots (not committed)
 ```
 
 Put both project documents in `docs/` as Markdown. Tell the coding agent to read them before every milestone.
@@ -165,7 +170,7 @@ If the window is smaller than 1440 × 900, show a message asking the participant
 `GuidedSetup` is a seven-screen flow that writes into the same BudgetDraft as the A form. It reuses A's field setters and validation, so both variants save the same configuration shape. Guide Part 14.4 defines every screen.
 
 ```tsx
-// components/guided/GuidedSetup.tsx
+// components/guided-setup/GuidedSetup.tsx
 const SCREENS = ['name', 'projects', 'period', 'amount', 'alerts', 'recipients', 'review'] as const;
 
 export function GuidedSetup({ draft, setField, save, log }: Props) {

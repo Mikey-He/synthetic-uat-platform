@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChecklistDropdown, Select } from "@/components/console/Dropdown";
 import type { BudgetConfig, Fixture } from "@/lib/domain/types";
 import { Checkbox } from "./fields";
-import type { Change } from "./formStore";
+import type { Change } from "@/components/budget-shared/formStore";
 import { PERIOD_OPTIONS, SAVINGS_OPTIONS, labelOptionText, projectsLabel, servicesLabel } from "./labels";
 
 type Props = {

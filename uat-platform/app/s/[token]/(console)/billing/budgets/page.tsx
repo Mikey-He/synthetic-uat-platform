@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { alertsAt, amountTypeLabel, appliesTo, kindLabel, periodLabel } from "@/components/budget/labels";
+import { alertsAt, amountTypeLabel, appliesTo, kindLabel, periodLabel } from "@/components/advanced-form/labels";
 import { listBudgets } from "@/lib/budgets";
 import { budgetAmount, currentMonth, scopeProjectIds, totalCost } from "@/lib/domain/costs";
 import { fixture } from "@/lib/fixtures";
