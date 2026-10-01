@@ -22,6 +22,9 @@ from .model import DEFAULT_MODEL, GeminiModel, Model, ScriptedModel
 
 ROOT = Path(__file__).resolve().parent.parent
 PERSONAS = ("low-v1", "medium-v1", "high-v1")
+# The coordinate grid each system prompt asks for. system-v1 asked for pixels,
+# which Gemini does not follow: it gives positions on a 0-1000 grid.
+PROMPT_COORDINATES = {"system-v1": None, "system-v2": 1000}
 
 
 def read(path: Path) -> str:
@@ -33,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--persona", choices=PERSONAS, required=True)
     parser.add_argument("--variant", choices=("A", "B"), required=True)
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"Gemini model ID (default {DEFAULT_MODEL})")
-    parser.add_argument("--prompt-version", default="system-v1")
+    parser.add_argument("--prompt-version", choices=tuple(PROMPT_COORDINATES), default="system-v2")
     parser.add_argument("--calibration", default=None, help="ID of a frozen file in calibrations/")
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument("--runs", type=int, default=1)
@@ -54,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
         task=read(ROOT / "prompts" / "task-v1.txt"),
         persona=read(ROOT / "personas" / f"{args.persona}.md"),
         calibration=read(ROOT / "calibrations" / f"{args.calibration}.md") if args.calibration else None,
+        coordinate_scale=PROMPT_COORDINATES[args.prompt_version],
     )
 
     console = ResearchConsole(base_url, password)

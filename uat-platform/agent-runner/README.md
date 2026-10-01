@@ -11,6 +11,10 @@ It then performs the one action the model returns, using only the mouse and the 
 
 By default the model is **`gemini-3.8-flash`**, Google's latest stable Gemini model as of 2026-09-30. It accepts image input and returns structured output.
 
+The default prompt is `system-v2`. It asks for positions on a 0–1000 grid over the screenshot, because Gemini gives positions that way. The runner converts them to pixels. Each step stores both the clicked pixels (`x`, `y`) and the model's own numbers (`modelX`, `modelY`).
+
+`system-v1` asked for pixels. Gemini answered on its 0–1000 grid anyway, so its clicks landed in the wrong places. Keep it only for comparison.
+
 ## Setup
 
 Run these commands from `agent-runner/`:
@@ -74,7 +78,8 @@ A click after which the screenshot is unchanged is flagged no_visible_change. It
 
 | Path | What it holds |
 | --- | --- |
-| `prompts/system-v1.md` | How the agent sees and acts (prompt version `system-v1`) |
+| `prompts/system-v2.md` | How the agent sees and acts, with 0–1000 coordinates (the default) |
+| `prompts/system-v1.md` | The first version, which asked for pixel coordinates |
 | `prompts/task-v1.txt` | The task text, word for word |
 | `personas/*-v1.md` | Low, medium and high familiarity. Each describes knowledge and habits, never instructions to make mistakes. |
 | `calibrations/` | Frozen calibration texts, loaded by ID (none yet) |

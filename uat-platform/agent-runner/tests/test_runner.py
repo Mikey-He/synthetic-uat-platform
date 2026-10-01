@@ -177,6 +177,31 @@ class RunTest(unittest.TestCase):
         self.assertNotIn('"x": 1,', last)  # older than the last five
 
 
+class ScaledCoordinatesTest(unittest.TestCase):
+    def test_a_0_to_1000_grid_is_converted_to_pixels_and_both_are_kept(self):
+        action = parse_action(json.dumps({"action": "click", "x": 56, "y": 642, "reason": "menu"}), scale=1000)
+        self.assertEqual(action.args, {"x": 81, "y": 578})
+        self.assertEqual(action.as_json(), {"action": "click", "x": 81, "y": 578, "modelX": 56, "modelY": 642, "reason": "menu"})
+        self.assertIn('"x": 56', action.as_model_said())
+        corner = parse_action('{"action":"click","x":1000,"y":1000}', scale=1000)
+        self.assertEqual(corner.args, {"x": 1439, "y": 899})
+
+    def test_points_off_the_grid_are_out_of_bounds(self):
+        with self.assertRaises(ActionError) as caught:
+            parse_action('{"action":"click","x":1001,"y":5}', scale=1000)
+        self.assertEqual(caught.exception.label, "out_of_bounds")
+
+    def test_the_run_clicks_pixels_and_shows_the_model_its_own_coordinates(self):
+        steps: list[dict] = []
+        tmp = Path(tempfile.mkdtemp())
+        page = FakePage()
+        model = ScriptedModel([click(500, 500), json.dumps({"action": "give_up", "reason": "x"})])
+        prompt = Prompt(system="s", task="t", persona="p", coordinate_scale=1000)
+        run(page, "http://app/s/t/billing", model, prompt, Recorder(steps.append, tmp / "r", tmp), lambda: False, FakeClock())
+        self.assertIn(("click", 720, 450), page.calls)
+        self.assertIn('"x": 500', model.turns[-1])
+
+
 class ParseTest(unittest.TestCase):
     def test_reads_every_action(self):
         self.assertEqual(parse_action(click()).args, {"x": 100, "y": 200})

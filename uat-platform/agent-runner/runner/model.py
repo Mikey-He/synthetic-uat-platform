@@ -45,6 +45,7 @@ class GeminiModel:
             response_json_schema=ACTION_SCHEMA,
             temperature=self.temperature,
             http_options=types.HttpOptions(timeout=self.timeout_ms),
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),  # no tools here
         )
         contents = [
             types.Part.from_text(text=turn),

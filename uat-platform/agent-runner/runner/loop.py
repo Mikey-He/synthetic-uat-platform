@@ -29,6 +29,7 @@ class Prompt:
     task: str
     persona: str
     calibration: str | None = None
+    coordinate_scale: int | None = None  # the grid the system prompt asks for; None means pixels
 
     def instructions(self) -> str:
         parts = [self.system.strip(), self.persona.strip()]
@@ -39,7 +40,7 @@ class Prompt:
     def turn(self, history: list[Action]) -> str:
         lines = ["## Task", self.task.strip(), "", "## Your last actions"]
         if history:
-            lines += [f"{i}. {a.signature()} because: {a.reason or ''}" for i, a in enumerate(history, 1)]
+            lines += [f"{i}. {a.as_model_said()} because: {a.reason or ''}" for i, a in enumerate(history, 1)]
         else:
             lines.append("None yet. This is the first screenshot.")
         lines += ["", "Here is the current screenshot. Reply with your next action."]
@@ -118,7 +119,7 @@ def run(
         try:
             raw = model.decide(prompt.instructions(), prompt.turn(history[-HISTORY:]), shot)
             step["latencyMs"] = int((clock() - asked) * 1000)
-            action = parse_action(raw)
+            action = parse_action(raw, prompt.coordinate_scale)
         except (ModelError, ActionError) as error:
             step["latencyMs"] = step["latencyMs"] or int((clock() - asked) * 1000)
             recorder.record_step(
