@@ -25,7 +25,7 @@ If two documents disagree, the design guide wins. If the guide is silent or uncl
 10. No personal data. Participants are stored under random IDs. Never store a participant's name or email.
 11. Secrets live in environment variables. Never commit `.env` files, API keys or passwords.
 12. All displayed dates and costs come from the fixture. Never use the real current date in anything a participant sees.
-13. Do not create or edit anything in `agent-runner/` until asked.
+13. The synthetic agent (AI engine) is built outside this repository (decision of 2026-10-02). Do not add an agent runner here. This repository is the platform only: versions A and B, the researcher console, the evaluator and the research records. Synthetic sessions connect through the researcher console API described in `README.md`.
 
 ## Finish every task the same way
 

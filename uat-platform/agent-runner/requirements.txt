@@ -1,5 +1,0 @@
-# Versions installed on 2026-09-30. Playwright matches the web app's @playwright/test.
-playwright==1.63.0
-google-genai==2.25.0
-requests==2.34.2
-python-dotenv==1.2.3

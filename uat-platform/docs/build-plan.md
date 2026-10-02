@@ -43,7 +43,7 @@ Set the study viewport to 1440 × 900 at 100% zoom everywhere. The agent runner 
 
 ## Repository structure
 
-Keep one repository with the web app at the root and the agent runner in its own folder. The runner never imports app code.
+This repository holds the web app only. The agent runner is built in a separate project (decision of 2026-10-02) and never imports app code.
 
 ```
 uat-platform/
@@ -74,14 +74,6 @@ uat-platform/
   scripts/
     open-session.ts           npm run open:a / open:b, a local test session in the browser
   launch/                     double-click versions of open:a and open:b (Windows)
-  agent-runner/
-    runner/loop.py            screenshot, model, action loop
-    runner/actions.py         click, type, key, scroll, wait
-    runner/model.py           model client (Gemini) and a scripted stand-in
-    prompts/                  versioned prompt files
-    personas/                 familiarity profiles
-    calibrations/             frozen calibration configs
-    runs/                     screenshots (not committed)
 ```
 
 Put both project documents in `docs/` as Markdown. Tell the coding agent to read them before every milestone.
@@ -317,6 +309,14 @@ The console lives under `/admin` behind a password set in an environment variabl
 The console never shows evaluation results inside participant routes. It also blocks viewing evaluation\_B outcomes until a calibration freeze exists, which enforces the RQ2 hold-out.
 
 ## Synthetic agent runner
+
+> Built outside this repository since 2026-10-02. This section stays as the specification for that project. The platform provides the interface it needs, documented in `README.md`:
+>
+> - synthetic sessions with model, prompt, persona, calibration and temperature recorded;
+> - an API to record each step;
+> - session status;
+> - ending a session by a stop rule;
+> - the `agent_steps.csv` export.
 
 The runner is a Python loop. Each turn it shows the model a screenshot and performs the one action the model returns. It sees exactly what a person would see and nothing more.
 
