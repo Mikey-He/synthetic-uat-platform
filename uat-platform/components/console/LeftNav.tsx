@@ -22,7 +22,9 @@ export function LeftNav({ token, accountName, stickyTop }: Props) {
       className="sticky w-64 shrink-0 self-start overflow-y-auto border-r border-line pb-4"
       style={{ top: stickyTop, height: `calc(100vh - ${stickyTop}px)` }}
     >
-      <div className="px-6 pb-2 pt-4 text-[18px] leading-6">Billing</div>
+      <div data-kl="T06" className="px-6 pb-2 pt-4 text-[18px] leading-6">
+        Billing
+      </div>
       <div className="px-4 pb-2">
         <Select
           label="Billing account"
@@ -30,6 +32,7 @@ export function LeftNav({ token, accountName, stickyTop }: Props) {
           options={[{ value: "account", label: accountName }]}
           onChange={() => undefined}
           className="w-full"
+          kl="T07"
         />
       </div>
       {NAV_GROUPS.map((group) => (
@@ -44,6 +47,7 @@ export function LeftNav({ token, accountName, stickyTop }: Props) {
               <li key={item.label}>
                 <Link
                   href={`${base}${item.path}`}
+                  data-kl={item.kl}
                   className={`mr-3 flex items-center gap-2 rounded-r-full py-1.5 pl-6 pr-4 ${
                     isActive(item.path) ? "bg-selected font-medium text-selected-ink" : "hover:bg-surface"
                   }`}

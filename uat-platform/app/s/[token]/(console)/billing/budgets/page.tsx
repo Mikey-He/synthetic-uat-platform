@@ -23,6 +23,7 @@ export default async function BudgetsPage({ params }: Props) {
         <h1 className="page-title">Budgets &amp; caps</h1>
         <Link
           href={`/s/${token}/billing/budgets/create`}
+          data-kl="T10"
           className="inline-flex h-9 items-center gap-1 rounded px-3 font-medium text-primary hover:bg-selected"
         >
           <span aria-hidden="true" className="text-[20px] leading-none">
@@ -65,7 +66,7 @@ export default async function BudgetsPage({ params }: Props) {
               return (
                 <tr key={id}>
                   <td>
-                    <Link href={`/s/${token}/billing/budgets/create?edit=${id}`} className="link">
+                    <Link href={`/s/${token}/billing/budgets/create?edit=${id}`} className="link" data-kl="T43">
                       {config.name}
                     </Link>
                   </td>

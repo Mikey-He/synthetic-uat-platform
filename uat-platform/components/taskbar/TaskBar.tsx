@@ -35,6 +35,7 @@ export function TaskBar({ token }: { token: string }) {
 
   return (
     <div
+      data-kl-harness=""
       className="fixed inset-x-0 top-0 z-40 flex items-start gap-4 overflow-hidden border-b border-note-line bg-note px-6 py-3"
       style={{ height: TASK_BAR_HEIGHT }}
     >

@@ -204,7 +204,7 @@ export function ReferenceCreateForm({ token, mode, data, initialConfig, editingB
   };
 
   const saveButton = (
-    <button type="button" className="btn-primary" disabled={saving} onClick={finish}>
+    <button type="button" className="btn-primary" disabled={saving} onClick={finish} data-kl="T24">
       {saveLabel}
     </button>
   );
@@ -337,7 +337,13 @@ type StepProps = {
 function Step({ number, status, open, last, onOpen, onNext, children }: StepProps) {
   return (
     <section>
-      <button type="button" onClick={onOpen} aria-expanded={open} className="flex items-center gap-4 py-1 text-left">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-expanded={open}
+        className="flex items-center gap-4 py-1 text-left"
+        data-kl="T15"
+      >
         <StepIcon number={number} status={status} />
         <span className="text-[22px] leading-9">{SECTION_NAMES[number]}</span>
       </button>
@@ -346,7 +352,7 @@ function Step({ number, status, open, last, onOpen, onNext, children }: StepProp
           <>
             {children}
             {onNext && (
-              <button type="button" className="btn-secondary mt-6" onClick={onNext}>
+              <button type="button" className="btn-secondary mt-6" onClick={onNext} data-kl="T15">
                 Next
               </button>
             )}

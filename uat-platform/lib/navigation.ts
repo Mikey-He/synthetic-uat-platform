@@ -2,7 +2,8 @@
 // Overview, Budgets & caps and Account management are part of the study; every
 // other entry opens the out-of-study placeholder.
 
-export type NavItem = { label: string; path: string; preview?: boolean };
+// kl: the knowledge item a link shows, for the AI engine (engine-design.md 7).
+export type NavItem = { label: string; path: string; preview?: boolean; kl?: string };
 export type NavGroup = { heading: string | null; items: NavItem[] };
 
 const stub = (area: string) => `/stub/${area}`;
@@ -22,7 +23,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     heading: "Cost control",
     items: [
-      { label: "Budgets & caps", path: "/billing/budgets", preview: true },
+      { label: "Budgets & caps", path: "/billing/budgets", preview: true, kl: "T09" },
       { label: "Anomalies", path: stub("anomalies") },
     ],
   },
@@ -34,7 +35,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "CUD analysis", path: stub("cud-analysis") },
       { label: "Pricing", path: stub("pricing") },
       { label: "Cost estimation", path: stub("cost-estimation") },
-      { label: "Credits", path: stub("credits") },
+      { label: "Credits", path: stub("credits"), kl: "T13" },
     ],
   },
   {

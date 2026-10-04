@@ -35,6 +35,7 @@ export function AmountSection({ config, targetText, data, errors, change }: Prop
           options={AMOUNT_TYPE_OPTIONS}
           onChange={(type) => change([["amount.type", type]])}
           className="w-full"
+          kl="T16"
         />
         {specified && (
           <p className="ml-4 mt-1 text-[12px] leading-4 text-muted">
@@ -46,6 +47,7 @@ export function AmountSection({ config, targetText, data, errors, change }: Prop
         <div>
           <OutlinedInput
             id={targetId}
+            kl="T36"
             label="Target amount *"
             prefix="$"
             inputMode="decimal"
@@ -58,6 +60,7 @@ export function AmountSection({ config, targetText, data, errors, change }: Prop
       ) : (
         <OutlinedInput
           id={targetId}
+          kl="T36"
           label="Target amount"
           prefix="$"
           value={lastMonthSpend(data, config.scope).toFixed(2)}

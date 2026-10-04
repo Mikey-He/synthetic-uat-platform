@@ -13,8 +13,8 @@ export function DefineSection({ config, errors, change }: Props) {
   const group = useId();
   const error = errors.get("name");
 
-  const radio = (kind: BudgetKind, label: string) => (
-    <label className="flex cursor-pointer items-center gap-3">
+  const radio = (kind: BudgetKind, label: string, kl: string) => (
+    <label className="flex cursor-pointer items-center gap-3" data-kl={kl}>
       <input
         type="radio"
         name={group}
@@ -30,8 +30,8 @@ export function DefineSection({ config, errors, change }: Props) {
     <>
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          {radio("alerts_only", "Alerts only (available to all services)")}
-          <HelpPopover>
+          {radio("alerts_only", "Alerts only (available to all services)", "T28")}
+          <HelpPopover kl="T25" explains="T18">
             <span className="block">
               Budget alerts track your actual spend relative to your planned budget. Unlike spend
               caps, budget alerts don&apos;t pause your services.
@@ -44,7 +44,7 @@ export function DefineSection({ config, errors, change }: Props) {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            {radio("spend_cap", "Spend cap enforcement (available for limited services)")}
+            {radio("spend_cap", "Spend cap enforcement (available for limited services)", "T29")}
             <PreviewTag />
           </div>
           <p className="ml-7 text-[12px] leading-4 text-muted">

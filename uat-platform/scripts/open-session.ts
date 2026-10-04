@@ -10,11 +10,15 @@ config({ quiet: true });
 //   1. starts the local Docker database if it is not running;
 //   2. starts the dev server if nothing answers on the port;
 //   3. creates a pilot human session with the chosen variant;
-//   4. opens its link in the default browser.
+//   4. opens its link in a study window: a Chromium window whose page is
+//      exactly 1440 x 900 at scale factor 1, the same as the engine's
+//      screenshots, whatever the computer's display scaling (guide Part 8).
+//      Add --system-browser to open the default browser instead.
 // The variant is chosen here because it never appears in a participant URL.
 // Local development only: it refuses to run against a remote database.
 
 const PORT = Number(process.env.PORT ?? 3000);
+const STUDY_VIEWPORT = { width: 1440, height: 900 };
 const BASE = `http://localhost:${PORT}`;
 const CONTAINER = "uat-platform-db";
 const DOCKER_DESKTOP = "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe";
@@ -73,6 +77,19 @@ function openInBrowser(url: string) {
   spawn(command, args, { detached: true, stdio: "ignore" }).unref();
 }
 
+// A fresh profile each time, so no cookies or zoom carry over between sessions.
+// Resolves when the window is closed.
+async function openStudyWindow(url: string) {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: false });
+  const context = await browser.newContext({ viewport: STUDY_VIEWPORT, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const closed = new Promise<void>((resolve) => browser.on("disconnected", () => resolve()));
+  page.on("close", () => void browser.close());
+  await page.goto(url);
+  return closed;
+}
+
 async function main() {
   const variant = process.argv[2]?.toUpperCase();
   if (variant !== "A" && variant !== "B") {
@@ -105,11 +122,19 @@ async function main() {
   const link = `${BASE}/s/${session.token}`;
   // Load the page once so the first visit in the browser is not a cold compile.
   await fetch(link).catch(() => undefined);
-  openInBrowser(link);
 
   console.log("");
   console.log(`Version ${variant} test session: ${link}`);
-  console.log("Use the browser in full screen at 100% zoom (at least 1440 x 900).");
+  // The id is what the researcher console and the engine's comparison (sue.compare) use.
+  console.log(`Session id: ${session.id}`);
+  if (process.argv.includes("--system-browser")) {
+    openInBrowser(link);
+    console.log("Use the browser in full screen at 100% zoom (at least 1440 x 900).");
+  } else {
+    console.log("Opening a study window at 1440 x 900. Close the window when the session is over.");
+    await openStudyWindow(link);
+    console.log("Study window closed.");
+  }
   if (server) console.log("The dev server keeps running here. Press Ctrl+C to stop it.");
 }
 

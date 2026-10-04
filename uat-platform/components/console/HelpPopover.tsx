@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 // The (?) next to a setting. Clicking it opens a small panel with a close
-// button, as in the reference capture.
-export function HelpPopover({ children }: { children: ReactNode }) {
+// button, as in the reference capture. kl marks the icon and explains marks the
+// item its text explains, for the AI engine (engine-design.md 7); neither is visible.
+export function HelpPopover({ children, kl, explains }: { children: ReactNode; kl?: string; explains?: string }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
 
@@ -22,6 +23,7 @@ export function HelpPopover({ children }: { children: ReactNode }) {
       {/* TODO: the icon has no visible text; its aria-label is not written in the docs. */}
       <button
         type="button"
+        data-kl={kl}
         aria-label="Help"
         aria-expanded={open}
         onClick={(event) => {
@@ -45,6 +47,7 @@ export function HelpPopover({ children }: { children: ReactNode }) {
       {open && (
         <span
           role="dialog"
+          data-kl-explains={explains}
           className="absolute left-0 top-6 z-40 block w-80 rounded bg-ink px-4 py-3 pr-9 text-[13px] font-normal leading-5 text-white shadow-lg"
         >
           {children}

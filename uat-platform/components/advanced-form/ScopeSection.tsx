@@ -35,6 +35,7 @@ export function ScopeSection({ config, data, change }: Props) {
           options={PERIOD_OPTIONS}
           onChange={(period) => change([["period", period]])}
           className="w-full"
+          kl="T11"
         />
         {/* TODO: the capture shows the helper for Monthly only. */}
         {config.period === "monthly" && (
@@ -63,6 +64,7 @@ export function ScopeSection({ config, data, change }: Props) {
       </div>
 
       <Checkbox
+        kl="T32"
         label="Read-only for project users (single-project budgets only)"
         checked={scope.readOnlyForProjectUsers}
         onChange={(checked) => change([["scope.readOnlyForProjectUsers", checked]])}
@@ -76,6 +78,7 @@ export function ScopeSection({ config, data, change }: Props) {
       {/* No project checked means every project, as in the capture. */}
       <div data-setting="scope">
         <ChecklistDropdown
+          kl="T05"
           label="Projects"
           display={projectsLabel(scope, data.projects)}
           options={data.projects.map((project) => ({ value: project.id, label: project.name, detail: project.id }))}
@@ -90,6 +93,7 @@ export function ScopeSection({ config, data, change }: Props) {
       </div>
 
       <ChecklistDropdown
+        kl="T12"
         label="Services"
         display={servicesLabel(scope.filters.services, data.services)}
         options={data.services.map((service) => ({ value: service, label: service }))}
@@ -102,6 +106,7 @@ export function ScopeSection({ config, data, change }: Props) {
           type="button"
           aria-expanded={labelsOpen}
           onClick={() => setLabelsOpen((value) => !value)}
+          data-kl="T35"
           className="flex w-full items-center justify-between py-1 text-left"
         >
           <span className="text-[16px] font-medium">Labels</span>
@@ -125,7 +130,7 @@ export function ScopeSection({ config, data, change }: Props) {
         )}
       </div>
 
-      <div>
+      <div data-kl="T34">
         <p className="text-[16px] font-medium">Savings</p>
         <p className="text-[12px] leading-4 text-muted">
           Selected credits are applied to the total cost. Budget tracks the total cost minus any

@@ -53,6 +53,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
                 <div className="w-44 shrink-0">
                   <OutlinedInput
                     id={`${idPrefix}-percent-${index}`}
+                    kl="T19"
                     label={`Percent of budget ${n} *`}
                     suffix="%"
                     inputMode="decimal"
@@ -74,6 +75,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
                   value={threshold.trigger}
                   options={TRIGGER_OPTIONS}
                   onChange={(trigger) => setTrigger(change, index, trigger)}
+                  kl="T37"
                   className="w-44 shrink-0"
                 />
                 {/* Shown on hover or focus, as in the capture ("Delete item"). */}
@@ -108,6 +110,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
         {!emailEnabled && <p className="mt-1 text-muted">Add a threshold rule to turn on email alerts.</p>}
         <div className="mt-1">
           <Checkbox
+            kl="T23"
             label="Email alerts to billing admins and users"
             checked={recipients.billingAdminsAndUsers}
             disabled={!emailEnabled}
@@ -116,19 +119,21 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
           {/* Always shown. With one project it works and the (?) goes away; otherwise
               the (?) explains the limit, as the participant's screenshots showed. */}
           <Checkbox
+            kl="T38"
             label="Email alerts to project owners"
             checked={recipients.projectOwners}
             disabled={!emailEnabled || !ownersAvailable}
             onChange={(checked) => change([["recipients.projectOwners", checked]])}
             help={
               ownersAvailable ? undefined : (
-                <HelpPopover>
+                <HelpPopover kl="T25" explains="T39">
                   This notification method is limited to budgets configured to monitor a single project.
                 </HelpPopover>
               )
             }
           />
           <Checkbox
+            kl="T22"
             label="Link Monitoring email notification channels to this budget"
             checked={recipients.monitoring.linked}
             disabled={!emailEnabled}
@@ -161,6 +166,7 @@ export function ActionsSection({ token, config, percentTexts, data, errors, chan
             </div>
           )}
           <Checkbox
+            kl="T21"
             label="Connect a Pub/Sub topic to this budget"
             checked={recipients.pubsubTopic !== undefined}
             onChange={(checked) => change([["recipients.pubsubTopic", checked ? "" : undefined]])}

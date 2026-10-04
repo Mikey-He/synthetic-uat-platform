@@ -23,6 +23,7 @@ type OutlinedInputProps = {
   className?: string;
   onFocus?: () => void;
   onBlur?: () => void;
+  kl?: string; // knowledge item this field shows, for the AI engine (engine-design.md 7)
 };
 
 export function OutlinedInput({
@@ -39,11 +40,13 @@ export function OutlinedInput({
   className = "",
   onFocus,
   onBlur,
+  kl,
 }: OutlinedInputProps) {
   const [focused, setFocused] = useState(false);
   const resting = floating && !focused && value === "";
   return (
     <div
+      data-kl={kl}
       className={`relative flex h-11 items-center rounded border bg-white ${
         invalid ? "border-error" : focused ? "border-primary" : "border-line hover:border-ink"
       } ${disabled ? "bg-surface" : ""} ${className}`}
@@ -89,11 +92,12 @@ type CheckboxProps = {
   onChange?: (checked: boolean) => void;
   help?: ReactNode; // a (?) popover after the label
   description?: ReactNode; // a line of explanation under the label
+  kl?: string; // knowledge item this option shows, for the AI engine (engine-design.md 7)
 };
 
-export function Checkbox({ label, checked, disabled, onChange, help, description }: CheckboxProps) {
+export function Checkbox({ label, checked, disabled, onChange, help, description, kl }: CheckboxProps) {
   return (
-    <div className="py-1.5">
+    <div className="py-1.5" data-kl={kl}>
       <div className="flex items-center gap-3">
         <label className={`flex items-center gap-3 ${disabled ? "text-muted" : "cursor-pointer"}`}>
           <input

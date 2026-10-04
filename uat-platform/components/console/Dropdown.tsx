@@ -74,17 +74,18 @@ type DropdownProps = {
   disabled?: boolean;
   invalid?: boolean;
   className?: string;
+  kl?: string; // knowledge item this field shows, for the AI engine (engine-design.md 7)
   children: (close: () => void) => ReactNode;
 };
 
-export function Dropdown({ label, display, disabled, invalid, className = "w-72", children }: DropdownProps) {
+export function Dropdown({ label, display, disabled, invalid, className = "w-72", kl, children }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const [close] = useState(() => () => setOpen(false));
   useDismiss(open, root, close);
 
   return (
-    <div ref={root} className={`relative ${className}`}>
+    <div ref={root} data-kl={kl} className={`relative ${className}`}>
       <Trigger
         label={label}
         display={display}
@@ -102,7 +103,7 @@ export function Dropdown({ label, display, disabled, invalid, className = "w-72"
   );
 }
 
-type Option<T extends string> = { value: T; label: string };
+type Option<T extends string> = { value: T; label: string; kl?: string };
 
 type SelectProps<T extends string> = {
   label?: string;
@@ -110,12 +111,13 @@ type SelectProps<T extends string> = {
   options: readonly Option<T>[];
   onChange: (value: T) => void;
   className?: string;
+  kl?: string;
 };
 
-export function Select<T extends string>({ label, value, options, onChange, className }: SelectProps<T>) {
+export function Select<T extends string>({ label, value, options, onChange, className, kl }: SelectProps<T>) {
   const current = options.find((option) => option.value === value);
   return (
-    <Dropdown label={label} display={current?.label ?? ""} className={className}>
+    <Dropdown label={label} display={current?.label ?? ""} className={className} kl={kl}>
       {(close) => (
         <div role="listbox">
           {options.map((option) => (
@@ -123,6 +125,7 @@ export function Select<T extends string>({ label, value, options, onChange, clas
               key={option.value}
               type="button"
               role="option"
+              data-kl={option.kl}
               aria-selected={option.value === value}
               onClick={() => {
                 onChange(option.value);
@@ -150,12 +153,13 @@ type ChecklistProps = {
   selected: string[];
   onApply: (next: string[]) => void;
   className?: string;
+  kl?: string;
 };
 
 // A checklist that applies on OK, like the capture's Projects picker: Select
 // all, one box per option, then Deselect all, Cancel and OK. Closing it any
 // other way discards the unapplied ticks.
-export function ChecklistDropdown({ label, display, options, selected, onApply, className = "w-full" }: ChecklistProps) {
+export function ChecklistDropdown({ label, display, options, selected, onApply, className = "w-full", kl }: ChecklistProps) {
   const [staged, setStaged] = useState<string[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const [discard] = useState(() => () => setStaged(null));
@@ -172,7 +176,7 @@ export function ChecklistDropdown({ label, display, options, selected, onApply, 
   const allTicked = open && staged.length === options.length && options.length > 0;
 
   return (
-    <div ref={root} className={`relative ${className}`}>
+    <div ref={root} data-kl={kl} className={`relative ${className}`}>
       <Trigger
         label={label}
         display={display}
@@ -221,6 +225,7 @@ export function ChecklistDropdown({ label, display, options, selected, onApply, 
             </button>
             <button
               type="button"
+              data-kl="T31" // engine item: a checklist applies only on OK
               className="rounded px-3 py-1.5 font-medium text-primary hover:bg-selected"
               onClick={() => {
                 onApply(staged);

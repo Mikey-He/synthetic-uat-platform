@@ -13,14 +13,15 @@ export const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "custom", label: "Custom range" },
 ];
 
-export const TRIGGER_OPTIONS: { value: Trigger; label: string }[] = [
-  { value: "actual", label: "Actual" },
-  { value: "forecasted", label: "Forecasted" },
+// kl: the knowledge item an option shows, for the AI engine (engine-design.md 7).
+export const TRIGGER_OPTIONS: { value: Trigger; label: string; kl?: string }[] = [
+  { value: "actual", label: "Actual", kl: "T37" },
+  { value: "forecasted", label: "Forecasted", kl: "T20" },
 ];
 
-export const AMOUNT_TYPE_OPTIONS: { value: AmountType; label: string }[] = [
-  { value: "specified", label: "Specified amount" },
-  { value: "last_period", label: "Last month's spend" },
+export const AMOUNT_TYPE_OPTIONS: { value: AmountType; label: string; kl?: string }[] = [
+  { value: "specified", label: "Specified amount", kl: "T16" },
+  { value: "last_period", label: "Last month's spend", kl: "T17" },
 ];
 
 export const SAVINGS_OPTIONS = [

@@ -45,9 +45,9 @@ Each run does four things:
 1. starts Docker and the database if they are not running;
 2. starts the dev server if it is not running;
 3. creates a new pilot session of that version;
-4. opens the session in your browser.
+4. opens the session in a study window: a Chromium window whose page is exactly 1440 × 900 at scale factor 1, the same as the AI engine's screenshots, whatever the computer's display scaling. Close the window when the session is over.
 
-The script refuses any database that is not local. Use the browser in full screen at 100% zoom; the window must be at least 1440 × 900.
+The script refuses any database that is not local. To open the default browser instead, run `npm run open:a -- --system-browser`; then use the browser in full screen at 100% zoom, with the window at least 1440 × 900.
 
 The researcher console is at `http://localhost:3000/admin`, with the `ADMIN_PASSWORD` from `.env`. From there you can:
 
@@ -88,5 +88,8 @@ To sign in, send `POST /api/admin/login` with the form field `password`. The res
 | `POST /api/admin/sessions/{id}/agent-steps` | `{"stepNo", "screenshotPath" (or null), "action" (any JSON object), "reason" (or null), "executed", "errorLabel" (one of `invalid_json`, `out_of_bounds`, `model_timeout`, `browser_error`, `no_visible_change`, or null), "latencyMs" (or null)}` | `201`. Synthetic sessions only. |
 | `GET /api/admin/sessions/{id}` | – | `{ended, terminationReason}`. The session ends by itself when the agent clicks I'm finished. |
 | `POST /api/admin/sessions/{id}/end` | `{"terminationReason": "abandoned" or "step_limit" or "time_limit" or "loop" or "technical_error"}` | `204`, or `409` if the session had already ended |
+| `GET /api/admin/sessions/{id}/result` | – | `{ended, terminationReason, saves, budgets, scored, evaluation}`: every saved budget at its latest version, the number of saved versions, which one scoring rule v1 picks, and its evaluation (or `null` while nothing has been scored) |
+
+Version A also carries marks for the engine's own browser. They are invisible attributes and change nothing a person sees: `data-kl="T09"` names the knowledge item an element shows, `data-kl-explains="T18"` names the item a help text explains, and `data-kl-harness` marks the task bar, which the engine leaves as it is. The item IDs are the engine's (its knowledge workbench); they say nothing about the variant.
 
 Steps appear in the `agent_steps.csv` export beside the sessions and events.
